@@ -1,31 +1,43 @@
 import React, { useState } from 'react';
 import { 
   Users, Sprout, Database, FileText, Plus, Search, 
-  ChevronLeft, ChevronRight, Share2, Edit, Trash2, Calendar as CalendarIcon, CheckCircle2, X 
+  ChevronLeft, ChevronRight, Share2, Edit, Trash2, Calendar as CalendarIcon, CheckCircle2, X, Clock
 } from 'lucide-react';
+import { User, DataEntry } from '../App';
 
-export default function DashboardPage({ user }) {
-  // 1. Mock Data for Overall Data Table
-  const [tableData, setTableData] = useState([
-    { id: 1, nama: 'Uwi (Dioscorea alata)', tempat: 'Desa Sukamaju', kategori: 'Pangan Karbohidrat', status: 'Aktif' },
-    { id: 2, nama: 'Padi Gogo Lokal', tempat: 'Desa Rancamanyar', kategori: 'Serealia', status: 'Aktif' },
-    { id: 3, nama: 'Talas Banten', tempat: 'Desa Kadupandak', kategori: 'Pangan Karbohidrat', status: 'Aktif' },
-    { id: 4, nama: 'Cengkeh Zanzibar', tempat: 'Desa Maluku Hulu', kategori: 'Rempah', status: 'Verifikasi' },
-    { id: 5, nama: 'Pala Banda', tempat: 'Desa Banda Neira', kategori: 'Rempah', status: 'Aktif' },
-  ]);
+interface DashboardPageProps {
+  user: User | null;
+  onNavigate: (page: string) => void;
+  dataEntries: DataEntry[];
+  onToggleEntryStatus: (id: string) => void;
+  onDeleteEntry: (id: string) => void;
+  setActiveEntryId: (id: string | null) => void;
+}
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterKategori, setFilterKategori] = useState('Semua');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // Form fields for Add Data
-  const [newNama, setNewNama] = useState('');
-  const [newTempat, setNewTempat] = useState('');
-  const [newKategori, setNewKategori] = useState('Pangan Karbohidrat');
-  const [newStatus, setNewStatus] = useState('Aktif');
+interface CalendarEventItem {
+  label: string;
+  type: string;
+}
+
+interface CalendarEvents {
+  [key: number]: CalendarEventItem[];
+}
+
+export default function DashboardPage({ 
+  user, 
+  onNavigate,
+  dataEntries,
+  onToggleEntryStatus,
+  onDeleteEntry,
+  setActiveEntryId
+}: DashboardPageProps): React.ReactElement {
+
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterKategori, setFilterKategori] = useState<string>('Semua');
+  const [showChoiceOverlay, setShowChoiceOverlay] = useState<boolean>(false);
 
   // 2. Calendar Event state
-  const [calendarEvents, setCalendarEvents] = useState({
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvents>({
     5: [{ label: 'Tanam Padi', type: 'tanam' }],
     10: [{ label: 'Pupuk Uwi', type: 'pupuk' }],
     14: [{ label: 'Tanam Talas', type: 'tanam' }, { label: 'Panen Cengkeh', type: 'panen' }],
@@ -33,49 +45,19 @@ export default function DashboardPage({ user }) {
     28: [{ label: 'Tanam Uwi', type: 'tanam' }, { label: 'Audit Benih', type: 'audit' }],
   });
 
-  const [selectedDayEvents, setSelectedDayEvents] = useState(null);
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-  const [newEventLabel, setNewEventLabel] = useState('');
-  const [newEventType, setNewEventType] = useState('tanam');
-
-  // Handle adding table data
-  const handleAddData = (e) => {
-    e.preventDefault();
-    if (!newNama || !newTempat) return;
-
-    const newItem = {
-      id: tableData.length + 1,
-      nama: newNama,
-      tempat: newTempat,
-      kategori: newKategori,
-      status: newStatus
-    };
-
-    setTableData([...tableData, newItem]);
-    
-    // Clear inputs
-    setNewNama('');
-    setNewTempat('');
-    setNewKategori('Pangan Karbohidrat');
-    setNewStatus('Aktif');
-    setIsModalOpen(false);
-  };
-
-  // Handle deleting table data
-  const handleDeleteItem = (id) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus data ini?')) {
-      setTableData(tableData.filter(item => item.id !== id));
-    }
-  };
+  const [selectedDayEvents, setSelectedDayEvents] = useState<CalendarEventItem[] | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [isEventModalOpen, setIsEventModalOpen] = useState<boolean>(false);
+  const [newEventLabel, setNewEventLabel] = useState<string>('');
+  const [newEventType, setNewEventType] = useState<string>('tanam');
 
   // Handle adding calendar event
-  const handleAddEvent = (e) => {
+  const handleAddEvent = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
-    if (!newEventLabel || !selectedDay) return;
+    if (!newEventLabel || selectedDay === null) return;
 
     const currentDayEvents = calendarEvents[selectedDay] || [];
-    const updatedEvents = {
+    const updatedEvents: CalendarEvents = {
       ...calendarEvents,
       [selectedDay]: [...currentDayEvents, { label: newEventLabel, type: newEventType }]
     };
@@ -87,28 +69,48 @@ export default function DashboardPage({ user }) {
   };
 
   // Filtering Logic
-  const filteredData = tableData.filter(item => {
-    const matchesSearch = item.nama.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          item.tempat.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterKategori === 'Semua' || item.kategori === filterKategori;
+  const filteredData = dataEntries.filter(item => {
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = item.nama.toLowerCase().includes(searchLower) || 
+                          item.lokasi.kota.toLowerCase().includes(searchLower) ||
+                          item.lokasi.deskripsiLokasi.toLowerCase().includes(searchLower);
+    
+    let matchesFilter = true;
+    if (filterKategori !== 'Semua') {
+      if (filterKategori === 'Benih') {
+        matchesFilter = item.type === 'Benih/Varietas';
+      } else if (filterKategori === 'Pengetahuan') {
+        matchesFilter = item.type === 'Pengetahuan Adat';
+      } else if (filterKategori === 'Desa') {
+        matchesFilter = item.type === 'Desa';
+      }
+    }
     return matchesSearch && matchesFilter;
   });
 
   // Calendar setup for January 2025
   const daysInMonth = 31;
-  const startOffset = 2; // Dec 30, Dec 31
   const prevMonthDays = [30, 31];
   const nextMonthDays = [1, 2];
 
-  const calendarDays = [];
+  interface CalendarDay {
+    day: number;
+    isCurrentMonth: boolean;
+  }
+
+  const calendarDays: CalendarDay[] = [];
   // Previous month padding
   prevMonthDays.forEach(d => calendarDays.push({ day: d, isCurrentMonth: false }));
   // Current month
   for (let i = 1; i <= daysInMonth; i++) {
     calendarDays.push({ day: i, isCurrentMonth: true });
   }
-  // Next month padding
   nextMonthDays.forEach(d => calendarDays.push({ day: d, isCurrentMonth: false }));
+
+  const handleEditClick = (id: string): void => {
+    setActiveEntryId(id);
+    onNavigate('validasi-data');
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-kms-gray-bg w-full pb-16">
@@ -228,28 +230,22 @@ export default function DashboardPage({ user }) {
                   <line x1="40" y1="170" x2="480" y2="170" stroke="#E5E7EB" />
                   
                   {/* Stacked Bars: Jan to Jun */}
-                  {/* Jan: h-120 */}
                   <rect x="70" y="50" width="30" height="120" rx="3" fill="#02E10E" />
                   <rect x="70" y="110" width="30" height="60" fill="#284027" />
                   
-                  {/* Feb: h-140 */}
                   <rect x="140" y="30" width="30" height="140" rx="3" fill="#02E10E" />
                   <rect x="140" y="90" width="30" height="80" fill="#D5E2C4" />
                   <rect x="140" y="130" width="30" height="40" fill="#7A5535" />
                   
-                  {/* Mar: h-90 */}
                   <rect x="210" y="80" width="30" height="90" rx="3" fill="#02E10E" />
                   <rect x="210" y="120" width="30" height="50" fill="#284027" />
                   
-                  {/* Apr: h-110 */}
                   <rect x="280" y="60" width="30" height="110" rx="3" fill="#02E10E" />
                   <rect x="280" y="100" width="30" height="70" fill="#D5E2C4" />
                   
-                  {/* Mei: h-70 */}
                   <rect x="350" y="100" width="30" height="70" rx="3" fill="#02E10E" />
                   <rect x="350" y="130" width="30" height="40" fill="#7A5535" />
                   
-                  {/* Jun: h-100 */}
                   <rect x="420" y="70" width="30" height="100" rx="3" fill="#02E10E" />
                   <rect x="420" y="110" width="30" height="60" fill="#284027" />
 
@@ -297,7 +293,7 @@ export default function DashboardPage({ user }) {
             </div>
 
             <button 
-              onClick={() => alert('Mengalihkan ke panel kelola akun...')}
+              onClick={() => onNavigate('manage-accounts')}
               className="bg-kms-green-dark hover:bg-emerald-950 active:scale-95 text-white text-sm font-extrabold px-8 py-3 rounded-[5px] border border-white/10 transition-all duration-200 cursor-pointer"
             >
               Kelola Akun
@@ -305,14 +301,67 @@ export default function DashboardPage({ user }) {
           </div>
         </section>
 
-        {/* 4. Overall Data Section */}
+        {/* 4. Semua Data Section */}
         <section className="space-y-3">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-extrabold text-gray-900">
-              Overall Data
+              Semua Data
             </h2>
           </div>
           <hr className="border-gray-300" />
+
+          {/* Validation Statistics Row above data table matching user feedback */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full select-none">
+            {/* Card 1: Dipublikasi */}
+            <div className="bg-[#E2EFE0] border border-[#C2DEC0]/30 rounded-[5px] p-4 flex items-center space-x-3 hover:scale-[1.02] transition-transform duration-200">
+              <div className="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center text-kms-green-dark">
+                <FileText className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider block">Dipublikasi</span>
+                <span className="text-xl font-extrabold text-kms-green-dark block">
+                  {204 + dataEntries.filter(e => e.status === 'Aktif').length}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 2: Menunggu Validasi */}
+            <div className="bg-[#F6EFEA] border border-[#E9DFD7]/30 rounded-[5px] p-4 flex items-center space-x-3 hover:scale-[1.02] transition-transform duration-200">
+              <div className="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center text-[#7A5535]">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider block">Menunggu Validasi</span>
+                <span className="text-xl font-extrabold text-[#7A5535] block">
+                  {13 + dataEntries.filter(e => e.status === 'Verifikasi').length}+
+                </span>
+              </div>
+            </div>
+
+            {/* Card 3: Ditolak */}
+            <div className="bg-[#FDF2F2] border border-[#FDE8E8]/30 rounded-[5px] p-4 flex items-center space-x-3 hover:scale-[1.02] transition-transform duration-200">
+              <div className="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center text-kms-red">
+                <X className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider block">Ditolak</span>
+                <span className="text-xl font-extrabold text-kms-red block">
+                  {13 + dataEntries.filter(e => e.status === 'Ditolak').length}
+                </span>
+              </div>
+            </div>
+
+            {/* Card 4: Perlu Direvisi */}
+            <div className="bg-[#F0F7FF] border border-[#E1EFFE]/30 rounded-[5px] p-4 flex items-center space-x-3 hover:scale-[1.02] transition-transform duration-200">
+              <div className="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center text-kms-blue-accent">
+                <Edit className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider block">Perlu Direvisi</span>
+                <span className="text-xl font-extrabold text-kms-blue-accent block">27</span>
+              </div>
+            </div>
+          </div>
 
           <div className="bg-white rounded-[5px] shadow-sm border border-gray-200/50 p-6 space-y-4">
             
@@ -326,26 +375,26 @@ export default function DashboardPage({ user }) {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Cari benih atau desa..."
-                    className="pl-9 pr-4 py-2 border border-gray-300 rounded-[5px] text-sm w-full outline-none focus:border-kms-blue-accent"
+                    placeholder="Cari benih, narasumber, atau tempat..."
+                    className="pl-9 pr-4 py-2 border border-gray-300 rounded-[5px] text-sm w-full outline-none focus:border-kms-blue-accent font-normal bg-white"
                   />
                 </div>
                 {/* Filter Dropdown */}
                 <select
                   value={filterKategori}
                   onChange={(e) => setFilterKategori(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-[5px] text-sm bg-white outline-none cursor-pointer focus:border-kms-blue-accent"
+                  className="px-3 py-2 border border-gray-300 rounded-[5px] text-sm bg-white outline-none cursor-pointer focus:border-kms-blue-accent font-semibold text-gray-700"
                 >
                   <option value="Semua">Semua Kategori</option>
-                  <option value="Pangan Karbohidrat">Pangan Karbohidrat</option>
-                  <option value="Serealia">Serealia</option>
-                  <option value="Rempah">Rempah</option>
+                  <option value="Benih">Benih/Varietas</option>
+                  <option value="Pengetahuan">Pengetahuan Adat</option>
+                  <option value="Desa">Desa Konservasi</option>
                 </select>
               </div>
 
               {/* Add Data Button */}
               <button
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => setShowChoiceOverlay(true)}
                 className="bg-kms-green-dark hover:bg-emerald-800 active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-[5px] transition-all flex items-center cursor-pointer w-full md:w-auto justify-center"
               >
                 <Plus className="w-4 h-4 mr-1.5" />
@@ -359,11 +408,11 @@ export default function DashboardPage({ user }) {
                 <thead className="bg-[#284027]/5 text-gray-700 font-extrabold">
                   <tr>
                     <th className="px-4 py-3 text-left w-12">No</th>
-                    <th className="px-4 py-3 text-left">Nama</th>
-                    <th className="px-4 py-3 text-left">Tempat</th>
+                    <th className="px-4 py-3 text-left w-36">ID Data</th>
+                    <th className="px-4 py-3 text-left">Nama Data</th>
                     <th className="px-4 py-3 text-left">Kategori</th>
                     <th className="px-4 py-3 text-center w-24">Status</th>
-                    <th className="px-4 py-3 text-center w-28">Aksi</th>
+                    <th className="px-4 py-3 text-center w-28">Change</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white text-gray-700 font-normal">
@@ -371,36 +420,50 @@ export default function DashboardPage({ user }) {
                     filteredData.map((item, idx) => (
                       <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3.5 font-semibold">{idx + 1}</td>
+                        <td className="px-4 py-3.5 font-semibold text-gray-600">{item.id}</td>
                         <td className="px-4 py-3.5 font-semibold text-gray-900">{item.nama}</td>
-                        <td className="px-4 py-3.5 text-gray-600">{item.tempat}</td>
                         <td className="px-4 py-3.5">
-                          <span className="bg-kms-green-light/40 text-kms-green-dark text-xs px-2.5 py-1 rounded-[5px] font-bold">
+                          <span className="bg-kms-green-light/45 text-kms-green-dark text-xs px-2.5 py-1 rounded-[5px] font-bold">
                             {item.kategori}
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-center">
-                          <span className={`inline-flex items-center text-xs font-extrabold px-2 py-0.5 rounded-full ${
-                            item.status === 'Aktif' 
-                              ? 'bg-green-100 text-kms-green-status' 
-                              : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                              item.status === 'Aktif' ? 'bg-kms-green-status' : 'bg-yellow-500'
-                            }`}></span>
-                            {item.status}
-                          </span>
+                          <div className="flex justify-center">
+                            <button 
+                              onClick={() => onToggleEntryStatus(item.id)}
+                              className={`w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-200 outline-none border-none ${
+                                item.status === 'Aktif' ? 'bg-kms-green-status' : 'bg-gray-300'
+                              }`}
+                              title={item.status === 'Aktif' ? "Set to Verification" : "Set to Active"}
+                            >
+                              <div 
+                                className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${
+                                  item.status === 'Aktif' ? 'translate-x-5' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                          </div>
                         </td>
                         <td className="px-4 py-3.5 text-center">
                           <div className="flex items-center justify-center space-x-2.5">
-                            <button className="text-gray-500 hover:text-kms-blue-edit cursor-pointer p-1 rounded hover:bg-gray-100 transition">
+                            <button 
+                              onClick={() => alert(`Link entri data ${item.nama} disalin ke clipboard.`)}
+                              className="text-gray-500 hover:text-kms-blue-edit cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
+                              title="Share Entry"
+                            >
                               <Share2 className="w-4 h-4" />
                             </button>
-                            <button className="text-gray-500 hover:text-kms-blue-edit cursor-pointer p-1 rounded hover:bg-gray-100 transition">
+                            <button 
+                              onClick={() => handleEditClick(item.id)}
+                              className="text-gray-500 hover:text-kms-blue-edit cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
+                              title="Validate Details / Edit"
+                            >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button 
-                              onClick={() => handleDeleteItem(item.id)}
-                              className="text-gray-500 hover:text-kms-red cursor-pointer p-1 rounded hover:bg-gray-100 transition"
+                              onClick={() => onDeleteEntry(item.id)}
+                              className="text-gray-500 hover:text-kms-red cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
+                              title="Delete Entry"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -410,7 +473,7 @@ export default function DashboardPage({ user }) {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="6" className="text-center py-8 text-gray-400 font-normal">
+                      <td colSpan={6} className="text-center py-8 text-gray-400 font-normal">
                         Tidak ada data ditemukan.
                       </td>
                     </tr>
@@ -421,13 +484,13 @@ export default function DashboardPage({ user }) {
 
             {/* Pagination simulator */}
             <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-gray-500 font-normal">Showing {filteredData.length} of {tableData.length} entries</span>
+              <span className="text-xs text-gray-500 font-normal">Showing {filteredData.length} of {dataEntries.length} entries</span>
               <div className="flex items-center space-x-1">
-                <button className="p-1 rounded border border-gray-300 hover:bg-gray-100 text-gray-500 cursor-pointer disabled:opacity-50" disabled>
+                <button className="p-1 rounded border border-gray-300 hover:bg-gray-100 text-gray-500 cursor-pointer disabled:opacity-50 bg-white" disabled>
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button className="px-2.5 py-1 text-xs font-bold rounded bg-kms-green-dark text-white">1</button>
-                <button className="p-1 rounded border border-gray-300 hover:bg-gray-100 text-gray-500 cursor-pointer disabled:opacity-50" disabled>
+                <button className="p-1 rounded border border-gray-300 hover:bg-gray-100 text-gray-500 cursor-pointer disabled:opacity-50 bg-white" disabled>
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -536,7 +599,7 @@ export default function DashboardPage({ user }) {
             </div>
 
             {/* Event list view beneath calendar if day selected */}
-            {selectedDay && (
+            {selectedDay !== null && (
               <div className="bg-[#284027]/5 rounded-[5px] p-4 text-sm space-y-2 border border-kms-green-light/20">
                 <div className="flex justify-between items-center">
                   <span className="font-extrabold text-gray-800">
@@ -612,7 +675,7 @@ export default function DashboardPage({ user }) {
 
             {/* Pagination dots indicator */}
             <div className="flex justify-center items-center space-x-1.5 pt-2">
-              <span className="w-2 h-2 rounded-full bg-kms-green-dark"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-kms-green-dark"></span>
               <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
               <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
               <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
@@ -623,90 +686,32 @@ export default function DashboardPage({ user }) {
 
       </div>
 
-      {/* ================= MODAL ADD DATA ================= */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-[5px] shadow-xl border border-gray-200 w-full max-w-md overflow-hidden animate-scale-up">
-            {/* Modal Header */}
-            <div className="bg-kms-green-dark text-white px-5 py-4 flex justify-between items-center">
-              <h3 className="text-base font-extrabold">Add New Seed Data</h3>
+      {/* ================= MODAL ADD DATA CHOICE OVERLAY ================= */}
+      {showChoiceOverlay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-[5px] p-6 max-w-sm w-full space-y-4 shadow-xl text-center border border-gray-200">
+            <h3 className="text-lg font-bold text-gray-900">Tambah Data Baru</h3>
+            <p className="text-xs text-gray-500">Pilih kategori data yang ingin ditambahkan</p>
+            <div className="flex flex-col space-y-2 pt-2">
               <button 
-                onClick={() => setIsModalOpen(false)}
-                className="text-white hover:text-kms-green-light cursor-pointer"
+                onClick={() => { setShowChoiceOverlay(false); onNavigate('add-data-pengetahuan'); }}
+                className="bg-kms-green-dark hover:bg-emerald-950 text-white font-bold py-2.5 rounded text-sm cursor-pointer border-none"
               >
-                <X className="w-5 h-5" />
+                Pengetahuan Adat
+              </button>
+              <button 
+                onClick={() => { setShowChoiceOverlay(false); onNavigate('add-data-benih'); }}
+                className="bg-kms-green-dark hover:bg-emerald-950 text-white font-bold py-2.5 rounded text-sm cursor-pointer border-none"
+              >
+                Benih / Varietas
               </button>
             </div>
-
-            {/* Modal Form */}
-            <form onSubmit={handleAddData} className="p-5 space-y-4 text-left">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-700 block">Nama Varietas</label>
-                <input
-                  type="text"
-                  value={newNama}
-                  onChange={(e) => setNewNama(e.target.value)}
-                  placeholder="Contoh: Talas Ketan, Cengkeh Raja"
-                  className="w-full border border-gray-300 rounded-[5px] px-3 py-2 text-sm outline-none focus:border-kms-blue-accent"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-700 block">Lokasi / Desa asal</label>
-                <input
-                  type="text"
-                  value={newTempat}
-                  onChange={(e) => setNewTempat(e.target.value)}
-                  placeholder="Contoh: Desa Sukamulya"
-                  className="w-full border border-gray-300 rounded-[5px] px-3 py-2 text-sm outline-none focus:border-kms-blue-accent"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-700 block">Kategori</label>
-                  <select
-                    value={newKategori}
-                    onChange={(e) => setNewKategori(e.target.value)}
-                    className="w-full border border-gray-300 rounded-[5px] px-2.5 py-2 text-sm outline-none cursor-pointer"
-                  >
-                    <option value="Pangan Karbohidrat">Karbohidrat</option>
-                    <option value="Serealia">Serealia</option>
-                    <option value="Rempah">Rempah</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-700 block">Status</label>
-                  <select
-                    value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value)}
-                    className="w-full border border-gray-300 rounded-[5px] px-2.5 py-2 text-sm outline-none cursor-pointer"
-                  >
-                    <option value="Aktif">Aktif</option>
-                    <option value="Verifikasi">Verifikasi</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-3 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold border border-gray-300 rounded-[5px] hover:bg-gray-100 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="bg-kms-green-dark hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2 rounded-[5px] cursor-pointer"
-                >
-                  Save Data
-                </button>
-              </div>
-            </form>
+            <button 
+              onClick={() => setShowChoiceOverlay(false)}
+              className="text-xs text-gray-500 hover:text-gray-800 hover:underline pt-2 cursor-pointer block mx-auto border-none bg-transparent"
+            >
+              Batal
+            </button>
           </div>
         </div>
       )}
@@ -719,7 +724,7 @@ export default function DashboardPage({ user }) {
               <h3 className="text-sm font-extrabold">Tambah Agenda Tanggal {selectedDay}</h3>
               <button 
                 onClick={() => setIsEventModalOpen(false)}
-                className="text-white hover:text-kms-green-light cursor-pointer"
+                className="text-white hover:text-kms-green-light cursor-pointer border-none bg-transparent"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -733,7 +738,7 @@ export default function DashboardPage({ user }) {
                   value={newEventLabel}
                   onChange={(e) => setNewEventLabel(e.target.value)}
                   placeholder="Contoh: Panen Padi Cigeulis"
-                  className="w-full border border-gray-300 rounded-[5px] px-3 py-2 text-xs outline-none focus:border-kms-blue-accent"
+                  className="w-full border border-gray-300 rounded-[5px] px-3 py-2 text-xs outline-none focus:border-kms-blue-accent font-normal"
                   required
                 />
               </div>
@@ -756,7 +761,7 @@ export default function DashboardPage({ user }) {
                 <button
                   type="button"
                   onClick={() => setIsEventModalOpen(false)}
-                  className="px-3.5 py-1.5 text-xs font-bold border border-gray-300 rounded-[5px] hover:bg-gray-100 cursor-pointer"
+                  className="px-3.5 py-1.5 text-xs font-bold border border-gray-300 rounded-[5px] hover:bg-gray-100 cursor-pointer bg-white"
                 >
                   Cancel
                 </button>

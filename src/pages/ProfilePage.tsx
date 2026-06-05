@@ -1,23 +1,32 @@
 import React, { useState } from 'react';
-import { Pencil, LogOut, Check, X, User } from 'lucide-react';
+import { Pencil, LogOut, Check, X, User as UserIcon } from 'lucide-react';
+import { User } from '../App';
 
-export default function ProfilePage({ user, onUpdateUser, onLogout, onNavigate }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedName, setEditedName] = useState(user?.name || 'Budi');
-  const [editedEmail, setEditedEmail] = useState(user?.email || 'budi@example.com');
-  const [editedUsername, setEditedUsername] = useState(user?.username || '@budijagobanget');
+interface ProfilePageProps {
+  user: User | null;
+  onUpdateUser: (userData: User) => void;
+  onLogout: () => void;
+}
 
-  const handleSave = () => {
-    onUpdateUser({
-      ...user,
-      name: editedName,
-      email: editedEmail,
-      username: editedUsername
-    });
+export default function ProfilePage({ user, onUpdateUser, onLogout }: ProfilePageProps): React.ReactElement {
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [editedName, setEditedName] = useState<string>(user?.name || 'Budi');
+  const [editedEmail, setEditedEmail] = useState<string>(user?.email || 'budi@example.com');
+  const [editedUsername, setEditedUsername] = useState<string>(user?.username || '@budijagobanget');
+
+  const handleSave = (): void => {
+    if (user) {
+      onUpdateUser({
+        ...user,
+        name: editedName,
+        email: editedEmail,
+        username: editedUsername
+      });
+    }
     setIsEditing(false);
   };
 
-  const handleCancel = () => {
+  const handleCancel = (): void => {
     setEditedName(user?.name || 'Budi');
     setEditedEmail(user?.email || 'budi@example.com');
     setEditedUsername(user?.username || '@budijagobanget');
@@ -30,7 +39,7 @@ export default function ProfilePage({ user, onUpdateUser, onLogout, onNavigate }
         
         {/* Large Avatar */}
         <div className="w-28 h-28 rounded-full bg-[#E5D7FA] flex items-center justify-center border-4 border-[#C084FC]/30 shadow-inner mb-6 relative">
-          <User className="w-14 h-14 text-[#6B21A8]" />
+          <UserIcon className="w-14 h-14 text-[#6B21A8]" />
         </div>
 
         {/* User Identity */}

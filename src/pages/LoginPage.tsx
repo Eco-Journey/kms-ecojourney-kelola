@@ -1,13 +1,19 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { User } from '../App';
 
-export default function LoginPage({ onNavigate, onLoginSuccess }) {
-  const [email, setEmail] = useState('john.doe@gmail.com');
-  const [password, setPassword] = useState('password123');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+interface LoginPageProps {
+  onNavigate: (page: string) => void;
+  onLoginSuccess: (userData: User) => void;
+}
 
-  const handleSubmit = (e) => {
+export default function LoginPage({ onNavigate, onLoginSuccess }: LoginPageProps): React.ReactElement {
+  const [email, setEmail] = useState<string>('john.doe@gmail.com');
+  const [password, setPassword] = useState<string>('password123');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
     if (!email || !password) {
       setError('Email dan Password wajib diisi.');

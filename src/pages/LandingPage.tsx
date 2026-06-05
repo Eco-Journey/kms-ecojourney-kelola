@@ -1,7 +1,18 @@
 import React from 'react';
 
-export default function LandingPage({ onNavigate }) {
-  const features = [
+interface LandingPageProps {
+  onNavigate: (page: string) => void;
+}
+
+interface Feature {
+  id: string;
+  title: string;
+  description: string;
+  imgSrc: string;
+}
+
+export default function LandingPage({ onNavigate }: LandingPageProps): React.ReactElement {
+  const features: Feature[] = [
     {
       id: 'benih',
       title: 'Dokumentasi benih lokal',

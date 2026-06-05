@@ -1,8 +1,23 @@
 import React from 'react';
-import { Bell, Mail, Search, User } from 'lucide-react';
+import { Bell, Mail, Search, User as UserIcon } from 'lucide-react';
+import { User } from '../App';
 
-export default function Header({ currentPage, user, onNavigate }) {
-  const isLoggedIn = currentPage === 'dashboard' || currentPage === 'profile';
+interface HeaderProps {
+  currentPage: string;
+  user: User | null;
+  onNavigate: (page: string) => void;
+}
+
+export default function Header({ currentPage, user, onNavigate }: HeaderProps): React.ReactElement {
+  const isLoggedIn = 
+    currentPage === 'dashboard' || 
+    currentPage === 'profile' || 
+    currentPage === 'manage-accounts' || 
+    currentPage === 'add-account' || 
+    currentPage === 'edit-account' ||
+    currentPage === 'add-data-benih' ||
+    currentPage === 'add-data-pengetahuan' ||
+    currentPage === 'validasi-data';
 
   return (
     <header className="bg-kms-green-dark w-full text-white px-4 md:px-8 py-4 flex items-center justify-between shadow-md select-none">
@@ -48,7 +63,7 @@ export default function Header({ currentPage, user, onNavigate }) {
           >
             {/* Purple Avatar */}
             <div className="w-10 h-10 rounded-full bg-[#E5D7FA] flex items-center justify-center border-2 border-[#C084FC]/30 group-hover:border-[#C084FC]/60 transition-all">
-              <User className="w-5 h-5 text-[#6B21A8]" />
+              <UserIcon className="w-5 h-5 text-[#6B21A8]" />
             </div>
             
             {/* Name and Role */}

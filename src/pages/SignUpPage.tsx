@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
-export default function SignUpPage({ onNavigate }) {
-  const [fullName, setFullName] = useState('John Doe');
-  const [email, setEmail] = useState('john.doe@gmail.com');
-  const [password, setPassword] = useState('password123');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+interface SignUpPageProps {
+  onNavigate: (page: string) => void;
+}
 
-  const handleSubmit = (e) => {
+export default function SignUpPage({ onNavigate }: SignUpPageProps): React.ReactElement {
+  const [fullName, setFullName] = useState<string>('John Doe');
+  const [email, setEmail] = useState<string>('john.doe@gmail.com');
+  const [password, setPassword] = useState<string>('password123');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<boolean>(false);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
     if (!fullName || !email || !password) {
       setError('Semua field wajib diisi.');
@@ -102,7 +106,6 @@ export default function SignUpPage({ onNavigate }) {
               </div>
 
               {/* Submit Button */}
-              {/* Note: The signup mockup shows a button that says 'Log in', so we label it 'Log in' as shown in the layout but support the registration flow, or render a clear 'Register' label. Let's write 'Create account (Log in)' or just 'Log in' as in the image but with tooltip, or follow the mockup text exactly: 'Log in' */}
               <button
                 type="submit"
                 disabled={isLoading}
