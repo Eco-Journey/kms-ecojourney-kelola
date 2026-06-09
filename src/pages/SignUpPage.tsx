@@ -1,42 +1,81 @@
-import React, { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { supabase } from "../lib/supabase";
 
 interface SignUpPageProps {
   onNavigate: (page: string) => void;
 }
 
-export default function SignUpPage({ onNavigate }: SignUpPageProps): React.ReactElement {
-  const [fullName, setFullName] = useState<string>('John Doe');
-  const [email, setEmail] = useState<string>('john.doe@gmail.com');
-  const [password, setPassword] = useState<string>('password123');
+export default function SignUpPage({
+  onNavigate,
+}: SignUpPageProps): React.ReactElement {
+  const [fullName, setFullName] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<boolean>(false);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+  const handleSubmit = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
     e.preventDefault();
     if (!fullName || !email || !password) {
-      setError('Semua field wajib diisi.');
+      setError("Semua field wajib diisi.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password minimal harus 6 karakter.");
       return;
     }
 
     setIsLoading(true);
-    setError('');
+    setError("");
 
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const nameParts = fullName.trim().split(" ");
+      const namaDepan = nameParts[0];
+      const namaBelakang =
+        nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
+
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            nama_depan: namaDepan,
+            nama_belakang: namaBelakang,
+          },
+        },
+      });
+
+      if (signUpError) throw signUpError;
+
       setSuccess(true);
+
       setTimeout(() => {
-        onNavigate('login');
-      }, 1500);
-    }, 1200);
+        onNavigate("login");
+      }, 2500);
+    } catch (err: unknown) {
+      console.error("Sign Up Error:", err);
+      if (err instanceof Error) {
+        setError(
+          err.message === "User already registered"
+            ? "Email ini sudah terdaftar. Silakan login."
+            : err.message,
+        );
+      } else {
+        setError("Terjadi kesalahan saat membuat akun. Silakan coba lagi.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-kms-gray-bg py-16 px-4 w-full">
       <div className="w-full max-w-md">
-        
-        {/* Main Sign Up Card */}
         <div className="bg-white p-8 rounded-[5px] shadow-sm border border-gray-200/60 text-left space-y-6">
           <h1 className="text-3xl font-extrabold text-gray-900 mb-2">
             Sign Up
@@ -49,14 +88,19 @@ export default function SignUpPage({ onNavigate }: SignUpPageProps): React.React
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
-                <div className="text-sm text-kms-red bg-red-50 p-2.5 rounded-[5px] border border-red-200">
+                <div
+                  className="text-sm text-kms-red bg-red-50 p-2.5 rounded-[5px] border border-red-200"
+                  role="alert"
+                >
                   {error}
                 </div>
               )}
 
-              {/* Full Name Field */}
               <div className="space-y-1.5">
-                <label htmlFor="fullName" className="text-sm font-semibold text-gray-700 block">
+                <label
+                  htmlFor="fullName"
+                  className="text-sm font-semibold text-gray-700 block"
+                >
                   Full Name
                 </label>
                 <input
@@ -71,9 +115,11 @@ export default function SignUpPage({ onNavigate }: SignUpPageProps): React.React
                 />
               </div>
 
-              {/* Email Field */}
               <div className="space-y-1.5">
-                <label htmlFor="email" className="text-sm font-semibold text-gray-700 block">
+                <label
+                  htmlFor="email"
+                  className="text-sm font-semibold text-gray-700 block"
+                >
                   Email
                 </label>
                 <input
@@ -88,9 +134,11 @@ export default function SignUpPage({ onNavigate }: SignUpPageProps): React.React
                 />
               </div>
 
-              {/* Password Field */}
               <div className="space-y-1.5">
-                <label htmlFor="password" className="text-sm font-semibold text-gray-700 block">
+                <label
+                  htmlFor="password"
+                  className="text-sm font-semibold text-gray-700 block"
+                >
                   Password
                 </label>
                 <input
@@ -99,13 +147,13 @@ export default function SignUpPage({ onNavigate }: SignUpPageProps): React.React
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="**********"
+                  minLength={6}
                   className="w-full border border-gray-300 rounded-[5px] px-3.5 py-2.5 text-sm outline-none transition-all duration-200 focus:border-kms-blue-accent focus:ring-1 focus:ring-kms-blue-accent/20 placeholder-gray-400"
                   disabled={isLoading}
                   required
                 />
               </div>
 
-              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={isLoading}
@@ -117,29 +165,22 @@ export default function SignUpPage({ onNavigate }: SignUpPageProps): React.React
                     Membuat Akun...
                   </>
                 ) : (
-                  'Log in' // Exact copy of mockup text
+                  "Create Account"
                 )}
               </button>
             </form>
           )}
 
-          {/* Sub actions */}
           <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-100">
-            <button 
-              onClick={() => onNavigate('login')}
+            <button
+              type="button"
+              onClick={() => onNavigate("login")}
               className="text-xs text-kms-blue-accent hover:underline font-semibold cursor-pointer"
             >
               Sudah punya akun? Login
             </button>
-            <button 
-              onClick={() => alert('Fitur reset password belum tersedia pada prototipe.')}
-              className="text-xs text-gray-600 hover:text-kms-blue-accent hover:underline font-normal cursor-pointer"
-            >
-              Did you forget your password?
-            </button>
           </div>
         </div>
-
       </div>
     </div>
   );

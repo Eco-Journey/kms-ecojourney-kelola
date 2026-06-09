@@ -1,18 +1,33 @@
-import React, { useState } from 'react';
-import { Pencil, LogOut, Check, X, User as UserIcon } from 'lucide-react';
-import { User } from '../App';
+import React, { useState } from "react";
+import {
+  Pencil,
+  LogOut,
+  Check,
+  X,
+  User as UserIcon,
+  Loader2,
+} from "lucide-react";
+import { User } from "../App";
 
 interface ProfilePageProps {
   user: User | null;
   onUpdateUser: (userData: User) => void;
-  onLogout: () => void;
+  onLogout: () => Promise<void>;
 }
 
-export default function ProfilePage({ user, onUpdateUser, onLogout }: ProfilePageProps): React.ReactElement {
+export default function ProfilePage({
+  user,
+  onUpdateUser,
+  onLogout,
+}: ProfilePageProps): React.ReactElement {
   const [isEditing, setIsEditing] = useState<boolean>(false);
-  const [editedName, setEditedName] = useState<string>(user?.name || 'Budi');
-  const [editedEmail, setEditedEmail] = useState<string>(user?.email || 'budi@example.com');
-  const [editedUsername, setEditedUsername] = useState<string>(user?.username || '@budijagobanget');
+  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
+
+  const [editedName, setEditedName] = useState<string>(user?.name || "");
+  const [editedEmail, setEditedEmail] = useState<string>(user?.email || "");
+  const [editedUsername, setEditedUsername] = useState<string>(
+    user?.username || "",
+  );
 
   const handleSave = (): void => {
     if (user) {
@@ -20,29 +35,35 @@ export default function ProfilePage({ user, onUpdateUser, onLogout }: ProfilePag
         ...user,
         name: editedName,
         email: editedEmail,
-        username: editedUsername
+        username: editedUsername,
       });
     }
     setIsEditing(false);
   };
 
   const handleCancel = (): void => {
-    setEditedName(user?.name || 'Budi');
-    setEditedEmail(user?.email || 'budi@example.com');
-    setEditedUsername(user?.username || '@budijagobanget');
+    setEditedName(user?.name || "");
+    setEditedEmail(user?.email || "");
+    setEditedUsername(user?.username || "");
     setIsEditing(false);
+  };
+
+  const handleLogoutClick = async (): Promise<void> => {
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+    } catch (err) {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-kms-gray-bg py-16 px-4 w-full">
       <div className="w-full max-w-lg bg-white rounded-[5px] p-8 md:p-12 shadow-sm border border-gray-200/50 flex flex-col items-center">
-        
-        {/* Large Avatar */}
         <div className="w-28 h-28 rounded-full bg-[#E5D7FA] flex items-center justify-center border-4 border-[#C084FC]/30 shadow-inner mb-6 relative">
           <UserIcon className="w-14 h-14 text-[#6B21A8]" />
         </div>
 
-        {/* User Identity */}
         {isEditing ? (
           <div className="w-full max-w-xs space-y-3 mb-6 text-center">
             <input
@@ -63,18 +84,15 @@ export default function ProfilePage({ user, onUpdateUser, onLogout }: ProfilePag
         ) : (
           <div className="text-center mb-8">
             <h2 className="text-2xl font-extrabold text-gray-900 leading-tight">
-              {user?.name || 'Budi'}
+              {user?.name || "Budi"}
             </h2>
             <span className="text-sm text-gray-500 block mt-1">
-              {user?.username || '@budijagobanget'}
+              {user?.username || "@budijagobanget"}
             </span>
           </div>
         )}
 
-        {/* Profile Attributes Section */}
         <div className="w-full max-w-md space-y-6 mb-10 text-left">
-          
-          {/* Email Item */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between py-1">
             <span className="text-sm md:text-base font-extrabold text-gray-800 min-w-28 mb-1 sm:mb-0">
               Email:
@@ -89,13 +107,12 @@ export default function ProfilePage({ user, onUpdateUser, onLogout }: ProfilePag
                 />
               ) : (
                 <span className="text-sm md:text-base text-gray-700 font-normal">
-                  {user?.email || 'budi@example.com'}
+                  {user?.email || "budi@example.com"}
                 </span>
               )}
             </div>
           </div>
 
-          {/* Password Item */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between py-1">
             <span className="text-sm md:text-base font-extrabold text-gray-800 min-w-28 mb-1 sm:mb-0">
               Password:
@@ -107,22 +124,19 @@ export default function ProfilePage({ user, onUpdateUser, onLogout }: ProfilePag
             </div>
           </div>
 
-          {/* Role Item */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between py-1">
             <span className="text-sm md:text-base font-extrabold text-gray-800 min-w-28 mb-1 sm:mb-0">
               Role:
             </span>
             <div className="flex-1 border-b border-gray-400 pb-1 text-right sm:text-left sm:pl-4">
               <span className="text-sm md:text-base text-gray-700 font-normal">
-                {user?.role || 'Administrator'}
+                {user?.role || "Administrator"}
               </span>
             </div>
           </div>
-
         </div>
 
-        {/* Buttons Action Group */}
-        <div className="flex flex-wrap items-center justify-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-4 mt-8">
           {isEditing ? (
             <>
               <button
@@ -142,27 +156,35 @@ export default function ProfilePage({ user, onUpdateUser, onLogout }: ProfilePag
             </>
           ) : (
             <>
-              {/* Edit Profile Button (color #384166) */}
               <button
                 onClick={() => setIsEditing(true)}
-                className="bg-kms-blue-edit hover:bg-[#2A3152] active:scale-95 text-white text-sm font-semibold px-6 py-2.5 rounded-full shadow-md transition-all duration-200 cursor-pointer flex items-center"
+                disabled={isLoggingOut}
+                className="bg-kms-blue-edit hover:bg-[#2A3152] active:scale-95 disabled:opacity-50 text-white text-sm font-semibold px-6 py-2.5 rounded-full shadow-md transition-all duration-200 cursor-pointer flex items-center"
               >
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit Profile
               </button>
-              
-              {/* Log Out Button (color #EB3131) */}
+
               <button
-                onClick={onLogout}
-                className="bg-kms-red hover:bg-red-700 active:scale-95 text-white text-sm font-semibold px-6 py-2.5 rounded-full shadow-md transition-all duration-200 cursor-pointer flex items-center"
+                onClick={handleLogoutClick}
+                disabled={isLoggingOut}
+                className="bg-kms-red hover:bg-red-700 active:scale-95 disabled:opacity-75 disabled:pointer-events-none text-white text-sm font-semibold px-6 py-2.5 rounded-full shadow-md transition-all duration-200 cursor-pointer flex items-center"
               >
-                <LogOut className="w-4 h-4 mr-2" />
-                Log Out
+                {isLoggingOut ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Keluar...
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Log Out
+                  </>
+                )}
               </button>
             </>
           )}
         </div>
-
       </div>
     </div>
   );
