@@ -8,9 +8,16 @@ import { DataEntry } from '../App';
 interface AddBenihPageProps {
   onNavigate: (page: string) => void;
   onAddEntry: (newEntry: DataEntry) => void;
+  editEntry?: DataEntry | null;
+  onUpdateEntry?: (entry: DataEntry) => void;
 }
 
-export default function AddBenihPage({ onNavigate, onAddEntry }: AddBenihPageProps): React.ReactElement {
+export default function AddBenihPage({
+  onNavigate,
+  onAddEntry,
+  editEntry = null,
+  onUpdateEntry,
+}: AddBenihPageProps): React.ReactElement {
   const [namaVarietas, setNamaVarietas] = useState<string>('');
   const [namaLokal, setNamaLokal] = useState<string>('');
   const [namaIlmiah, setNamaIlmiah] = useState<string>('');
@@ -24,6 +31,28 @@ export default function AddBenihPage({ onNavigate, onAddEntry }: AddBenihPagePro
   const [provinsi, setProvinsi] = useState<string>('');
   const [deskripsiLokasi, setDeskripsiLokasi] = useState<string>('');
   const [deskripsi, setDeskripsi] = useState<string>('');
+
+  React.useEffect(() => {
+    if (editEntry) {
+      setNamaVarietas(editEntry.nama || "");
+      setNamaLokal(editEntry.namaLokal || "");
+      setNamaIlmiah(editEntry.namaIlmiah || "");
+      const cleanKategori = editEntry.kategori ? editEntry.kategori.replace(/^Benih /, "") : "Pangan Karbohidrat";
+      setKategori(cleanKategori);
+      setTanggalPenemuan(editEntry.tanggal || "");
+      setNamaPenemu(editEntry.namaPenemu || "");
+      if (editEntry.lokasi) {
+        setLatitude(editEntry.lokasi.koordinat ? editEntry.lokasi.koordinat.lat : null);
+        setLongitude(editEntry.lokasi.koordinat ? editEntry.lokasi.koordinat.lng : null);
+        setKotaKabupaten(editEntry.lokasi.kota || "");
+        setProvinsi(editEntry.lokasi.provinsi || "");
+        setDeskripsiLokasi(editEntry.lokasi.deskripsiLokasi || "");
+      }
+      setDeskripsi(editEntry.deskripsi || "");
+      setUploadedImages(editEntry.images || []);
+      setFpicFileName(editEntry.fpicDoc || "");
+    }
+  }, [editEntry]);
 
   // Image Upload States
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -66,32 +95,56 @@ export default function AddBenihPage({ onNavigate, onAddEntry }: AddBenihPagePro
       return;
     }
 
-    const randomId = 'B' + Math.floor(100 + Math.random() * 900);
-    const newEntry: DataEntry = {
-      id: randomId,
-      type: 'Benih/Varietas',
-      nama: namaVarietas,
-      kategori: 'Benih ' + kategori,
-      status: 'Verifikasi', // Initial status set to verification
-      tanggal: tanggalPenemuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-      lokasi: {
-        kota: kotaKabupaten,
-        provinsi: provinsi,
-        deskripsiLokasi: deskripsiLokasi,
-        koordinat: latitude !== null && longitude !== null ? { lat: latitude, lng: longitude } : null
-      },
-      deskripsi: deskripsi,
-      images: uploadedImages.length > 0 ? uploadedImages : ['https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&q=80&w=600&h=450'],
-      fpicDoc: fpicFileName || 'dokumen_fpic_signed.pdf',
-      
-      // Benih specific
-      namaLokal: namaLokal || namaVarietas,
-      namaIlmiah: namaIlmiah || 'Solanum tuberosum L.',
-      namaPenemu: namaPenemu
-    };
+    if (editEntry) {
+      const updatedEntry: DataEntry = {
+        ...editEntry,
+        nama: namaVarietas,
+        kategori: 'Benih ' + kategori,
+        tanggal: tanggalPenemuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+        lokasi: {
+          kota: kotaKabupaten,
+          provinsi: provinsi,
+          deskripsiLokasi: deskripsiLokasi,
+          koordinat: latitude !== null && longitude !== null ? { lat: latitude, lng: longitude } : null
+        },
+        deskripsi: deskripsi,
+        images: uploadedImages.length > 0 ? uploadedImages : ['https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&q=80&w=600&h=450'],
+        fpicDoc: fpicFileName || 'dokumen_fpic_signed.pdf',
+        namaLokal: namaLokal || namaVarietas,
+        namaIlmiah: namaIlmiah || 'Solanum tuberosum L.',
+        namaPenemu: namaPenemu
+      };
 
-    onAddEntry(newEntry);
-    alert('Varietas benih berhasil ditambahkan dan dikirim untuk verifikasi!');
+      if (onUpdateEntry) {
+        onUpdateEntry(updatedEntry);
+      }
+      alert('Varietas benih berhasil diperbarui!');
+    } else {
+      const randomId = 'B' + Math.floor(100 + Math.random() * 900);
+      const newEntry: DataEntry = {
+        id: randomId,
+        type: 'Benih/Varietas',
+        nama: namaVarietas,
+        kategori: 'Benih ' + kategori,
+        status: 'Verifikasi', // Initial status set to verification
+        tanggal: tanggalPenemuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+        lokasi: {
+          kota: kotaKabupaten,
+          provinsi: provinsi,
+          deskripsiLokasi: deskripsiLokasi,
+          koordinat: latitude !== null && longitude !== null ? { lat: latitude, lng: longitude } : null
+        },
+        deskripsi: deskripsi,
+        images: uploadedImages.length > 0 ? uploadedImages : ['https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&q=80&w=600&h=450'],
+        fpicDoc: fpicFileName || 'dokumen_fpic_signed.pdf',
+        namaLokal: namaLokal || namaVarietas,
+        namaIlmiah: namaIlmiah || 'Solanum tuberosum L.',
+        namaPenemu: namaPenemu
+      };
+
+      onAddEntry(newEntry);
+      alert('Varietas benih berhasil ditambahkan dan dikirim untuk verifikasi!');
+    }
     onNavigate('dashboard');
   };
 
@@ -110,7 +163,7 @@ export default function AddBenihPage({ onNavigate, onAddEntry }: AddBenihPagePro
             Dashboard
           </span>
           <h1 className="text-3xl md:text-4xl font-extrabold mt-1">
-            Add Data (Benih/Varietas)
+            {editEntry ? "Edit Data (Benih/Varietas)" : "Add Data (Benih/Varietas)"}
           </h1>
           <p className="text-sm text-gray-300 mt-2 font-normal">
             Eco Journey Knowledge Management System
@@ -293,7 +346,7 @@ export default function AddBenihPage({ onNavigate, onAddEntry }: AddBenihPagePro
                   className="bg-kms-green-status hover:bg-emerald-500 active:scale-95 text-white text-xs font-extrabold px-6 py-2.5 rounded-[5px] transition-all duration-200 cursor-pointer shadow-sm flex items-center border-none"
                 >
                   <Check className="w-4 h-4 mr-1.5" />
-                  Add Data
+                  {editEntry ? "Simpan Perubahan" : "Add Data"}
                 </button>
               </div>
             </div>

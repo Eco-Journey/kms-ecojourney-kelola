@@ -12,7 +12,7 @@ import EditAccountPage from "./pages/EditAccountPage";
 import AddBenihPage from "./pages/AddBenihPage";
 import AddPengetahuanPage from "./pages/AddPengetahuanPage";
 import ValidasiDataPage from "./pages/ValidasiDataPage";
-import { Eye, Layout, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 
 export interface User {
@@ -66,7 +66,6 @@ function App() {
   const [currentPage, setCurrentPage] = useState<string>("landing");
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
-  const [showDevPanel, setShowDevPanel] = useState<boolean>(true);
 
   const [accounts, setAccounts] = useState<Account[]>([
     {
@@ -208,7 +207,7 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       if (event === "SIGNED_IN" && session?.user) {
         await fetchAndSetUserProfile(session.user.id, session.user.email || "");
       } else if (event === "SIGNED_OUT") {
@@ -264,6 +263,12 @@ function App() {
 
   const handleAddEntry = (newEntry: DataEntry): void => {
     setDataEntries((prev) => [newEntry, ...prev]);
+  };
+
+  const handleUpdateEntry = (updatedEntry: DataEntry): void => {
+    setDataEntries((prev) =>
+      prev.map((entry) => (entry.id === updatedEntry.id ? updatedEntry : entry)),
+    );
   };
 
   const handleValidateEntry = (id: string, newStatus: string): void => {
@@ -352,32 +357,28 @@ function App() {
         );
       case "add-data-benih":
         return (
-          <AddBenihPage onNavigate={navigate} onAddEntry={handleAddEntry} />
+          <AddBenihPage
+            onNavigate={navigate}
+            onAddEntry={handleAddEntry}
+            editEntry={activeEntryId ? currentActiveEntry : null}
+            onUpdateEntry={handleUpdateEntry}
+          />
         );
       case "add-data-pengetahuan":
         return (
           <AddPengetahuanPage
             onNavigate={navigate}
             onAddEntry={handleAddEntry}
+            editEntry={activeEntryId ? currentActiveEntry : null}
+            onUpdateEntry={handleUpdateEntry}
           />
         );
       case "validasi-data":
-        if (user?.role !== "administrator" && user?.role !== "fasilitator") {
-          setTimeout(() => navigate("dashboard"), 0);
-          return (
-            <DashboardPage
-              user={user}
-              onNavigate={navigate}
-              dataEntries={dataEntries}
-              onToggleEntryStatus={handleToggleEntryStatus}
-              onDeleteEntry={handleDeleteEntry}
-              setActiveEntryId={setActiveEntryId}
-            />
-          );
-        }
+        // Everyone can view details, validation controls will be disabled/hidden inside for non-pakar/non-admin
         return (
           <ValidasiDataPage
             entry={currentActiveEntry}
+            user={user}
             onNavigate={navigate}
             onValidateEntry={handleValidateEntry}
           />
@@ -470,82 +471,7 @@ function App() {
 
       <Footer />
 
-      <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end">
-        {showDevPanel && (
-          <div className="bg-[#1E293B]/95 backdrop-blur-md text-white rounded-[5px] p-4 shadow-2xl border border-slate-700/60 mb-2 w-64 text-left animate-slide-up select-none">
-            <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-700">
-              <span className="text-xs font-bold uppercase tracking-wider flex items-center">
-                <Layout className="w-3.5 h-3.5 mr-1 text-kms-green-light" />
-                Dev Page Switcher
-              </span>
-              <button
-                onClick={() => setShowDevPanel(false)}
-                className="text-[10px] bg-slate-800 hover:bg-slate-700 text-gray-300 px-1.5 py-0.5 rounded cursor-pointer"
-              >
-                Hide
-              </button>
-            </div>
 
-            <div className="flex flex-col space-y-1.5 max-h-72 overflow-y-auto pr-1">
-              {[
-                { id: "landing", label: "1. Landing Page" },
-                { id: "login", label: "2. Login Page" },
-                { id: "signup", label: "3. Sign Up Page" },
-                { id: "dashboard", label: "4. Dashboard Page" },
-                { id: "profile", label: "5. Profile Page" },
-                { id: "manage-accounts", label: "6. Manajemen Akun" },
-                { id: "add-account", label: "7. Add Account" },
-                { id: "edit-account", label: "8. Edit Account / Role" },
-                { id: "add-data-benih", label: "9. Add Benih Form" },
-                { id: "add-data-pengetahuan", label: "10. Add Pengetahuan" },
-                { id: "validasi-data", label: "11. Validasi Data Page" },
-              ].map((pg) => (
-                <button
-                  key={pg.id}
-                  onClick={() => {
-                    if (
-                      pg.id === "edit-account" &&
-                      accounts.length > 0 &&
-                      !editingAccountId
-                    ) {
-                      setEditingAccountId(accounts[0].id);
-                    }
-                    if (
-                      pg.id === "validasi-data" &&
-                      dataEntries.length > 0 &&
-                      !activeEntryId
-                    ) {
-                      setActiveEntryId(dataEntries[0].id);
-                    }
-                    navigate(pg.id);
-                  }}
-                  className={`text-left text-xs px-2.5 py-2 rounded-[3px] transition duration-150 cursor-pointer ${
-                    currentPage === pg.id
-                      ? "bg-kms-green-dark text-white font-bold"
-                      : "hover:bg-slate-800 text-gray-300"
-                  }`}
-                >
-                  {pg.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-gray-400 mt-3 text-center leading-normal font-normal">
-              Gunakan panel ini untuk meninjau masing-masing mockup desain
-              dengan instan.
-            </p>
-          </div>
-        )}
-
-        {!showDevPanel && (
-          <button
-            onClick={() => setShowDevPanel(true)}
-            className="bg-slate-900 hover:bg-slate-800 text-white p-3 rounded-full shadow-lg border border-slate-700 hover:scale-105 transition-all duration-200 cursor-pointer flex items-center justify-center"
-            title="Tampilkan Page Switcher"
-          >
-            <Eye className="w-5 h-5 text-kms-green-light" />
-          </button>
-        )}
-      </div>
     </div>
   );
 }

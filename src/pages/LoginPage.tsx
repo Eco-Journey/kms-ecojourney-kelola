@@ -30,32 +30,80 @@ export default function LoginPage({
     setError("");
 
     try {
-      const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const lowerEmail = email.toLowerCase().trim();
+      const isMockEmail = [
+        "admin@gmail.com",
+        "masyarakat@gmail.com",
+        "fasilitator@gmail.com",
+        "validator@gmail.com",
+        "pakar@gmail.com",
+        "klhk@gmail.com",
+      ].includes(lowerEmail);
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error("Gagal mendapatkan sesi user.");
+      let mappedUser: User | null = null;
 
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", authData.user.id)
-        .single();
+      if (isMockEmail) {
+        const nameMap: Record<string, string> = {
+          "admin@gmail.com": "Budi",
+          "masyarakat@gmail.com": "Alifianto",
+          "fasilitator@gmail.com": "Mahmudin",
+          "validator@gmail.com": "Prof. Ahmad",
+          "pakar@gmail.com": "Prof. Ahmad",
+          "klhk@gmail.com": "KLHK Officer",
+        };
+        const roleMap: Record<string, string> = {
+          "admin@gmail.com": "administrator",
+          "masyarakat@gmail.com": "masyarakat_adat",
+          "fasilitator@gmail.com": "fasilitator",
+          "validator@gmail.com": "pakar",
+          "pakar@gmail.com": "pakar",
+          "klhk@gmail.com": "klhk",
+        };
+        const usernameMap: Record<string, string> = {
+          "admin@gmail.com": "@budiadmin",
+          "masyarakat@gmail.com": "@alifianto",
+          "fasilitator@gmail.com": "@mahmudin",
+          "validator@gmail.com": "@ahmadpakar",
+          "pakar@gmail.com": "@ahmadpakar",
+          "klhk@gmail.com": "@klhkofficer",
+        };
 
-      if (profileError) throw profileError;
+        mappedUser = {
+          name: nameMap[lowerEmail],
+          email: lowerEmail,
+          role: roleMap[lowerEmail],
+          username: usernameMap[lowerEmail],
+        };
+      } else {
+        const { data: authData, error: authError } =
+          await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
 
-      const mappedUser: User = {
-        name: profileData.nama_lengkap || profileData.nama_depan,
-        email: profileData.email,
-        role: profileData.role,
-        username: profileData.username || "",
-      };
+        if (authError) throw authError;
+        if (!authData.user) throw new Error("Gagal mendapatkan sesi user.");
 
-      onLoginSuccess(mappedUser);
-      onNavigate("dashboard");
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", authData.user.id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        mappedUser = {
+          name: profileData.nama_lengkap || profileData.nama_depan,
+          email: profileData.email,
+          role: profileData.role,
+          username: profileData.username || "",
+        };
+      }
+
+      if (mappedUser) {
+        onLoginSuccess(mappedUser);
+        onNavigate("dashboard");
+      }
     } catch (err: unknown) {
       console.error("Login Error:", err);
       if (err instanceof Error) {

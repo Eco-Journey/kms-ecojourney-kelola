@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { ChevronLeft, ChevronRight, FileText, Check, X } from "lucide-react";
 import MapLocator from "../components/MapLocator";
-import { DataEntry } from "../App";
+import { User, DataEntry } from "../App";
 import Toast, { ToastType } from "../components/Toast";
 import ConfirmModal from "../components/ConfirmModal";
 
 interface ValidasiDataPageProps {
   entry: DataEntry | null;
+  user: User | null;
   onNavigate: (page: string) => void;
   onValidateEntry: (
     id: string,
@@ -16,6 +17,7 @@ interface ValidasiDataPageProps {
 
 export default function ValidasiDataPage({
   entry,
+  user,
   onNavigate,
   onValidateEntry,
 }: ValidasiDataPageProps): React.ReactElement {
@@ -47,6 +49,13 @@ export default function ValidasiDataPage({
     namaPenemu: "Luthfi Daffa Praditya Jason",
   };
 
+  const userRole = user?.role?.toLowerCase() || "";
+  const isAdmin = userRole === "administrator";
+  const isPakar = userRole === "pakar" || userRole === "validator";
+  const canValidate = isAdmin || isPakar;
+
+  const [saranRevisi, setSaranRevisi] = useState<string>("");
+  const [isAgreed, setIsAgreed] = useState<boolean>(false);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const [toast, setToast] = useState<{
     message: string;
@@ -321,54 +330,85 @@ export default function ValidasiDataPage({
               </div>
 
               {/* Dynamic validation actions inside Card bottom */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-6 border-t border-gray-150">
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs font-bold text-gray-600">
-                    Status Pengajuan:
-                  </span>
-                  <span
-                    className={`inline-flex items-center text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
-                      currentEntry.status === "Aktif"
-                        ? "bg-green-150 text-kms-green-dark"
-                        : currentEntry.status === "Ditolak"
-                          ? "bg-red-100 text-kms-red"
-                          : "bg-yellow-100 text-yellow-700"
-                    }`}
-                  >
-                    {currentEntry.status}
-                  </span>
-                </div>
+              <div className="pt-6 border-t border-gray-150 space-y-4">
+                {canValidate && currentEntry.status === "Verifikasi" && (
+                  <div className="flex items-start space-x-2 bg-gray-50 border border-gray-200 rounded p-3">
+                    <input
+                      type="checkbox"
+                      id="consent-check"
+                      checked={isAgreed}
+                      onChange={(e) => setIsAgreed(e.target.checked)}
+                      className="mt-1 w-4 h-4 cursor-pointer focus:ring-kms-green-dark"
+                    />
+                    <label htmlFor="consent-check" className="text-xs text-gray-700 font-semibold cursor-pointer leading-relaxed">
+                      Data tersebut telah benar dan saya bertanggungjawab atas persetujuan publikasi data tersebut.
+                    </label>
+                  </div>
+                )}
 
-                <div className="flex space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => onNavigate("dashboard")}
-                    className="px-5 py-2 text-xs font-bold border border-gray-300 rounded-[5px] hover:bg-gray-150 transition cursor-pointer text-gray-700 bg-white"
-                  >
-                    Cancel
-                  </button>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-bold text-gray-600">
+                      Status Pengajuan:
+                    </span>
+                    <span
+                      className={`inline-flex items-center text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
+                        currentEntry.status === "Aktif"
+                          ? "bg-green-150 text-kms-green-dark"
+                          : currentEntry.status === "Ditolak"
+                            ? "bg-red-100 text-kms-red"
+                            : currentEntry.status === "Perlu Direvisi"
+                              ? "bg-blue-150 text-blue-850"
+                              : "bg-yellow-100 text-yellow-750"
+                      }`}
+                    >
+                      {currentEntry.status}
+                    </span>
+                  </div>
 
-                  {/* Approve / Reject buttons available if not yet processed */}
-                  {currentEntry.status === "Verifikasi" && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={handleReject}
-                        className="bg-kms-red hover:bg-red-700 text-white text-xs font-extrabold px-4.5 py-2 rounded-[5px] transition cursor-pointer shadow-xs border-none flex items-center"
-                      >
-                        <X className="w-3.5 h-3.5 mr-1" />
-                        Tolak
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleApprove}
-                        className="bg-kms-green-status hover:bg-emerald-500 text-white text-xs font-extrabold px-4.5 py-2 rounded-[5px] transition cursor-pointer shadow-xs border-none flex items-center"
-                      >
-                        <Check className="w-3.5 h-3.5 mr-1" />
-                        Edit Data
-                      </button>
-                    </>
-                  )}
+                  <div className="flex space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate("dashboard")}
+                      className="px-5 py-2 text-xs font-bold border border-gray-300 rounded-[5px] hover:bg-gray-150 transition cursor-pointer text-gray-700 bg-white"
+                    >
+                      Cancel
+                    </button>
+
+                    {/* Approve / Reject buttons available if not yet processed */}
+                    {canValidate && currentEntry.status === "Verifikasi" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!isAgreed) {
+                              showToast("Anda harus menyetujui pernyataan pertanggungjawaban terlebih dahulu.", "warning");
+                              return;
+                            }
+                            handleReject();
+                          }}
+                          className="bg-kms-red hover:bg-red-700 text-white text-xs font-extrabold px-4.5 py-2 rounded-[5px] transition cursor-pointer shadow-xs border-none flex items-center"
+                        >
+                          <X className="w-3.5 h-3.5 mr-1" />
+                          Tolak
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!isAgreed) {
+                              showToast("Anda harus menyetujui pernyataan pertanggungjawaban terlebih dahulu.", "warning");
+                              return;
+                            }
+                            handleApprove();
+                          }}
+                          className="bg-kms-green-status hover:bg-emerald-500 text-white text-xs font-extrabold px-4.5 py-2 rounded-[5px] transition cursor-pointer shadow-xs border-none flex items-center"
+                        >
+                          <Check className="w-3.5 h-3.5 mr-1" />
+                          Setujui
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -482,18 +522,63 @@ export default function ValidasiDataPage({
 
                 <button
                   type="button"
-                  onClick={() =>
-                    showToast(
-                      `Memulai unduhan dokumen ${currentEntry.fpicDoc}...`,
-                      "success",
-                    )
-                  }
+                  onClick={handleDownloadFPIC}
                   className="px-3.5 py-1.5 bg-[#EFEFEF] hover:bg-gray-200 border border-gray-300 rounded text-[10px] font-bold text-gray-800 cursor-pointer"
                 >
                   Unduh
                 </button>
               </div>
             </div>
+
+            {canValidate && currentEntry.status === "Verifikasi" && (
+              <div className="bg-white rounded-[5px] border border-gray-200/50 shadow-sm p-6 space-y-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-900 tracking-tight">
+                    Saran atau Revisi
+                  </h3>
+                  <hr className="border-gray-200 mt-2" />
+                </div>
+                
+                <div className="space-y-3">
+                  {/* Styling toolbar mockup */}
+                  <div className="flex items-center space-x-1 bg-gray-50 border border-gray-200 rounded p-1">
+                    <button type="button" className="p-1 hover:bg-gray-200 rounded text-xs font-bold text-gray-600">B</button>
+                    <button type="button" className="p-1 hover:bg-gray-200 rounded text-xs italic text-gray-600">I</button>
+                    <button type="button" className="p-1 hover:bg-gray-200 rounded text-xs underline text-gray-600">U</button>
+                    <div className="w-px h-4 bg-gray-200 mx-1"></div>
+                    <button type="button" className="p-1 hover:bg-gray-200 rounded text-xs text-gray-600">A-</button>
+                    <button type="button" className="p-1 hover:bg-gray-200 rounded text-xs text-gray-600">A+</button>
+                  </div>
+                  <textarea
+                    value={saranRevisi}
+                    onChange={(e) => setSaranRevisi(e.target.value)}
+                    placeholder="Tuliskan saran perbaikan jika ada..."
+                    className="w-full border border-gray-300 rounded-[5px] px-3.5 py-2 text-sm outline-none focus:border-kms-blue-accent font-normal bg-white min-h-[100px]"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isAgreed) {
+                          showToast("Anda harus menyetujui pernyataan pertanggungjawaban terlebih dahulu.", "warning");
+                          return;
+                        }
+                        if (!saranRevisi.trim()) {
+                          showToast("Saran revisi tidak boleh kosong jika ingin dikirim.", "warning");
+                          return;
+                        }
+                        onValidateEntry(currentEntry.id, "Perlu Direvisi");
+                        showToast("Saran revisi berhasil dikirim ke pengaju data.", "success");
+                        setTimeout(() => onNavigate("dashboard"), 1800);
+                      }}
+                      className="bg-kms-green-dark hover:bg-emerald-950 text-white text-xs font-bold px-4 py-2 rounded-[5px] cursor-pointer border-none"
+                    >
+                      Kirim
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

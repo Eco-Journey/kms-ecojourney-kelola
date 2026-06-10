@@ -8,9 +8,16 @@ import { DataEntry } from '../App';
 interface AddPengetahuanPageProps {
   onNavigate: (page: string) => void;
   onAddEntry: (newEntry: DataEntry) => void;
+  editEntry?: DataEntry | null;
+  onUpdateEntry?: (entry: DataEntry) => void;
 }
 
-export default function AddPengetahuanPage({ onNavigate, onAddEntry }: AddPengetahuanPageProps): React.ReactElement {
+export default function AddPengetahuanPage({
+  onNavigate,
+  onAddEntry,
+  editEntry = null,
+  onUpdateEntry,
+}: AddPengetahuanPageProps): React.ReactElement {
   const [judulPengetahuan, setJudulPengetahuan] = useState<string>('');
   const [varietasTerkait, setVarietasTerkait] = useState<string>('');
   const [wilayahAsal, setWilayahAsal] = useState<string>('');
@@ -24,6 +31,28 @@ export default function AddPengetahuanPage({ onNavigate, onAddEntry }: AddPenget
   const [provinsi, setProvinsi] = useState<string>('');
   const [deskripsiLokasi, setDeskripsiLokasi] = useState<string>('');
   const [deskripsi, setDeskripsi] = useState<string>('');
+
+  React.useEffect(() => {
+    if (editEntry) {
+      setJudulPengetahuan(editEntry.nama || "");
+      setVarietasTerkait(editEntry.varietasTerkait || "");
+      setWilayahAsal(editEntry.wilayahAsal || "");
+      const cleanKategori = editEntry.kategori ? editEntry.kategori.replace(/^Pengetahuan /, "") : "Obat Tradisional";
+      setKategori(cleanKategori);
+      setTanggalPublikasi(editEntry.tanggal || "");
+      setNamaNarasumber(editEntry.namaNarasumber || "");
+      if (editEntry.lokasi) {
+        setLatitude(editEntry.lokasi.koordinat ? editEntry.lokasi.koordinat.lat : null);
+        setLongitude(editEntry.lokasi.koordinat ? editEntry.lokasi.koordinat.lng : null);
+        setKotaKabupaten(editEntry.lokasi.kota || "");
+        setProvinsi(editEntry.lokasi.provinsi || "");
+        setDeskripsiLokasi(editEntry.lokasi.deskripsiLokasi || "");
+      }
+      setDeskripsi(editEntry.deskripsi || "");
+      setUploadedImages(editEntry.images || []);
+      setFpicFileName(editEntry.fpicDoc || "");
+    }
+  }, [editEntry]);
 
   // Image Upload States
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -65,33 +94,58 @@ export default function AddPengetahuanPage({ onNavigate, onAddEntry }: AddPenget
       return;
     }
 
-    const randomId = 'P' + Math.floor(100 + Math.random() * 900);
-    const newEntry: DataEntry = {
-      id: randomId,
-      type: 'Pengetahuan Adat',
-      nama: judulPengetahuan,
-      kategori: 'Pengetahuan ' + kategori,
-      status: 'Verifikasi', // Initial status is verification
-      tanggal: tanggalPublikasi || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-      lokasi: {
-        kota: kotaKabupaten,
-        provinsi: provinsi,
-        deskripsiLokasi: deskripsiLokasi,
-        koordinat: latitude !== null && longitude !== null ? { lat: latitude, lng: longitude } : null
-      },
-      deskripsi: deskripsi,
-      images: uploadedImages.length > 0 ? uploadedImages : ['https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&q=80&w=600&h=450'],
-      fpicDoc: fpicFileName || 'dokumen_fpic_signed.pdf',
-      
-      // Pengetahuan specific
-      judulPengetahuan: judulPengetahuan,
-      varietasTerkait: varietasTerkait,
-      wilayahAsal: wilayahAsal,
-      namaNarasumber: namaNarasumber
-    };
+    if (editEntry) {
+      const updatedEntry: DataEntry = {
+        ...editEntry,
+        nama: judulPengetahuan,
+        kategori: 'Pengetahuan ' + kategori,
+        tanggal: tanggalPublikasi || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+        lokasi: {
+          kota: kotaKabupaten,
+          provinsi: provinsi,
+          deskripsiLokasi: deskripsiLokasi,
+          koordinat: latitude !== null && longitude !== null ? { lat: latitude, lng: longitude } : null
+        },
+        deskripsi: deskripsi,
+        images: uploadedImages.length > 0 ? uploadedImages : ['https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&q=80&w=600&h=450'],
+        fpicDoc: fpicFileName || 'dokumen_fpic_signed.pdf',
+        judulPengetahuan: judulPengetahuan,
+        varietasTerkait: varietasTerkait,
+        wilayahAsal: wilayahAsal,
+        namaNarasumber: namaNarasumber
+      };
 
-    onAddEntry(newEntry);
-    alert('Pengetahuan adat berhasil ditambahkan dan dikirim untuk verifikasi!');
+      if (onUpdateEntry) {
+        onUpdateEntry(updatedEntry);
+      }
+      alert('Pengetahuan adat berhasil diperbarui!');
+    } else {
+      const randomId = 'P' + Math.floor(100 + Math.random() * 900);
+      const newEntry: DataEntry = {
+        id: randomId,
+        type: 'Pengetahuan Adat',
+        nama: judulPengetahuan,
+        kategori: 'Pengetahuan ' + kategori,
+        status: 'Verifikasi', // Initial status is verification
+        tanggal: tanggalPublikasi || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+        lokasi: {
+          kota: kotaKabupaten,
+          provinsi: provinsi,
+          deskripsiLokasi: deskripsiLokasi,
+          koordinat: latitude !== null && longitude !== null ? { lat: latitude, lng: longitude } : null
+        },
+        deskripsi: deskripsi,
+        images: uploadedImages.length > 0 ? uploadedImages : ['https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&q=80&w=600&h=450'],
+        fpicDoc: fpicFileName || 'dokumen_fpic_signed.pdf',
+        judulPengetahuan: judulPengetahuan,
+        varietasTerkait: varietasTerkait,
+        wilayahAsal: wilayahAsal,
+        namaNarasumber: namaNarasumber
+      };
+
+      onAddEntry(newEntry);
+      alert('Pengetahuan adat berhasil ditambahkan dan dikirim untuk verifikasi!');
+    }
     onNavigate('dashboard');
   };
 
@@ -110,7 +164,7 @@ export default function AddPengetahuanPage({ onNavigate, onAddEntry }: AddPenget
             Dashboard
           </span>
           <h1 className="text-3xl md:text-4xl font-extrabold mt-1">
-            Add Data (Pengetahuan Adat)
+            {editEntry ? "Edit Data (Pengetahuan Adat)" : "Add Data (Pengetahuan Adat)"}
           </h1>
           <p className="text-sm text-gray-300 mt-2 font-normal">
             Eco Journey Knowledge Management System
@@ -293,7 +347,7 @@ export default function AddPengetahuanPage({ onNavigate, onAddEntry }: AddPenget
                   className="bg-kms-green-status hover:bg-emerald-500 active:scale-95 text-white text-xs font-extrabold px-6 py-2.5 rounded-[5px] transition-all duration-200 cursor-pointer shadow-sm flex items-center border-none"
                 >
                   <Check className="w-4 h-4 mr-1.5" />
-                  Add Data
+                  {editEntry ? "Simpan Perubahan" : "Add Data"}
                 </button>
               </div>
             </div>

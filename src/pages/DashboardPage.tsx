@@ -41,10 +41,26 @@ interface CalendarEvents {
 export default function DashboardPage({
   user,
   onNavigate,
+  dataEntries = [],
+  onToggleEntryStatus,
+  onDeleteEntry,
   setActiveEntryId,
 }: DashboardPageProps): React.ReactElement {
-  const [localEntries, setLocalEntries] = useState<DataEntry[]>([]);
+  const userRole = user?.role?.toLowerCase() || "";
+  const isMasyarakat = userRole === "masyarakat_adat" || userRole === "masyarakat adat";
+  const isFasilitator = userRole === "fasilitator";
+  const isPakar = userRole === "pakar" || userRole === "validator";
+  const isKlhk = userRole === "klhk";
+  const isAdmin = userRole === "administrator";
+
+  const [localEntries, setLocalEntries] = useState<DataEntry[]>(dataEntries);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (dataEntries && dataEntries.length > 0) {
+      setLocalEntries(dataEntries);
+    }
+  }, [dataEntries]);
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterKategori, setFilterKategori] = useState<string>("Semua");
@@ -167,6 +183,9 @@ export default function DashboardPage({
         entry.id === id ? { ...entry, status: newStatusUI } : entry,
       ),
     );
+    if (onToggleEntryStatus) {
+      onToggleEntryStatus(id);
+    }
 
     try {
       const { error } = await supabase
@@ -188,6 +207,9 @@ export default function DashboardPage({
           entry.id === id ? { ...entry, status: rollbackStatus } : entry,
         ),
       );
+      if (onToggleEntryStatus) {
+        onToggleEntryStatus(id);
+      }
     }
   };
 
@@ -206,6 +228,9 @@ export default function DashboardPage({
       if (error) throw error;
 
       setLocalEntries((prev) => prev.filter((entry) => entry.id !== id));
+      if (onDeleteEntry) {
+        onDeleteEntry(id);
+      }
     } catch (err) {
       console.error("Delete entry error:", err);
       alert("Gagal menghapus entri data.");
@@ -272,9 +297,17 @@ export default function DashboardPage({
     calendarDays.push({ day: d, isCurrentMonth: false }),
   );
 
-  const handleEditClick = (id: string): void => {
-    setActiveEntryId(id);
-    onNavigate("validasi-data");
+  const handleEditClick = (item: DataEntry): void => {
+    setActiveEntryId(item.id);
+    if (isMasyarakat || isFasilitator) {
+      if (item.type === "Benih/Varietas") {
+        onNavigate("add-data-benih");
+      } else {
+        onNavigate("add-data-pengetahuan");
+      }
+    } else {
+      onNavigate("validasi-data");
+    }
   };
 
   return (
@@ -299,32 +332,60 @@ export default function DashboardPage({
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-          {[
-            {
-              label: "Total Varietas Benih",
-              value: "1.125+",
-              icon: Sprout,
-              bg: "bg-white/10",
-            },
-            {
-              label: "Total Desa Terdata",
-              value: "450+",
-              icon: Database,
-              bg: "bg-white/10",
-            },
-            {
-              label: "Total Pengetahuan",
-              value: "925+",
-              icon: FileText,
-              bg: "bg-white/10",
-            },
-            {
-              label: "Total Laporan Masuk",
-              value: "27",
-              icon: Users,
-              bg: "bg-white/10",
-            },
-          ].map((stat, idx) => (
+          {(isPakar
+            ? [
+                {
+                  label: "Disetujui",
+                  value: String(localEntries.filter((e) => e.status === "Aktif").length),
+                  icon: CheckCircle2,
+                  bg: "bg-white/10",
+                },
+                {
+                  label: "Menunggu Validasi",
+                  value: String(localEntries.filter((e) => e.status === "Verifikasi").length),
+                  icon: Clock,
+                  bg: "bg-white/10",
+                },
+                {
+                  label: "Ditolak",
+                  value: String(localEntries.filter((e) => e.status === "Ditolak").length),
+                  icon: X,
+                  bg: "bg-white/10",
+                },
+                {
+                  label: "Perlu Revisi",
+                  value: String(localEntries.filter((e) => e.status === "Perlu Direvisi").length || 0),
+                  icon: Edit,
+                  bg: "bg-white/10",
+                },
+              ]
+            : [
+                {
+                  label: "Total Varietas Benih",
+                  value: "1.125+",
+                  icon: Sprout,
+                  bg: "bg-white/10",
+                },
+                {
+                  label: "Total Desa Terdata",
+                  value: "450+",
+                  icon: Database,
+                  bg: "bg-white/10",
+                },
+                {
+                  label: "Total Pengetahuan",
+                  value: "925+",
+                  icon: FileText,
+                  bg: "bg-white/10",
+                },
+                {
+                  label: "Total Laporan Masuk",
+                  value: "27",
+                  icon: Users,
+                  bg: "bg-white/10",
+                },
+              ]
+          ).map((stat, idx) => (
             <div
               key={idx}
               className={`${stat.bg} backdrop-blur-md rounded-[5px] p-4 text-left border border-white/15 hover:border-white/30 hover:bg-white/15 transition-all duration-200 shadow-sm`}
@@ -346,352 +407,374 @@ export default function DashboardPage({
       </section>
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-10 w-full text-left">
-        <section className="space-y-3">
-          <h2 className="text-xl font-extrabold text-gray-900">
-            Public Statistic
-          </h2>
-          <hr className="border-gray-300" />
+        {(isAdmin || isKlhk) && (
+          <section className="space-y-3">
+            <h2 className="text-xl font-extrabold text-gray-900">
+              Public Statistic
+            </h2>
+            <hr className="border-gray-300" />
 
-          <div className="bg-white p-6 rounded-[5px] shadow-sm border border-gray-200/50 grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-extrabold text-gray-800">
-                  Public Visit (Trend)
-                </span>
-                <span className="text-xs text-kms-blue-edit font-semibold">
-                  Aktif
-                </span>
-              </div>
-              <div className="w-full bg-gray-50 rounded-lg p-2 flex items-center justify-center">
-                <svg className="w-full h-48" viewBox="0 0 500 200">
-                  <defs>
-                    <linearGradient
-                      id="chartGradient"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop offset="0%" stopColor="#02E10E" stopOpacity="0.3" />
-                      <stop
-                        offset="100%"
-                        stopColor="#02E10E"
-                        stopOpacity="0.0"
-                      />
-                    </linearGradient>
-                  </defs>
-
-                  <line
-                    x1="40"
-                    y1="20"
-                    x2="480"
-                    y2="20"
-                    stroke="#E5E7EB"
-                    strokeDasharray="4 4"
-                  />
-                  <line
-                    x1="40"
-                    y1="70"
-                    x2="480"
-                    y2="70"
-                    stroke="#E5E7EB"
-                    strokeDasharray="4 4"
-                  />
-                  <line
-                    x1="40"
-                    y1="120"
-                    x2="480"
-                    y2="120"
-                    stroke="#E5E7EB"
-                    strokeDasharray="4 4"
-                  />
-                  <line x1="40" y1="170" x2="480" y2="170" stroke="#E5E7EB" />
-
-                  <path
-                    d="M 40 170 C 100 120, 150 140, 200 90 C 250 40, 300 30, 350 70 C 400 110, 440 130, 480 120 L 480 170 L 40 170 Z"
-                    fill="url(#chartGradient)"
-                  />
-
-                  <path
-                    d="M 40 170 C 100 120, 150 140, 200 90 C 250 40, 300 30, 350 70 C 400 110, 440 130, 480 120"
-                    fill="none"
-                    stroke="#284027"
-                    strokeWidth="3.5"
-                  />
-
-                  <circle
-                    cx="300"
-                    cy="38"
-                    r="6"
-                    fill="#02E10E"
-                    stroke="#fff"
-                    strokeWidth="2"
-                  />
-                  <text
-                    x="300"
-                    y="24"
-                    textAnchor="middle"
-                    fontSize="10"
-                    fontWeight="bold"
-                    fill="#284027"
-                  >
-                    4.520 Vis
-                  </text>
-
-                  <text
-                    x="40"
-                    y="185"
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#9CA3AF"
-                  >
-                    Min
-                  </text>
-                  <text
-                    x="260"
-                    y="185"
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#9CA3AF"
-                  >
-                    Tengah
-                  </text>
-                  <text
-                    x="480"
-                    y="185"
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#9CA3AF"
-                  >
-                    Max
-                  </text>
-                </svg>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-extrabold text-gray-800">
-                  Public Visit (Bulanan)
-                </span>
-                <span className="text-xs text-gray-500 font-semibold">
-                  Jan - Jun
-                </span>
-              </div>
-              <div className="w-full bg-gray-50 rounded-lg p-2 flex items-center justify-center">
-                <svg className="w-full h-48" viewBox="0 0 500 200">
-                  <line
-                    x1="40"
-                    y1="20"
-                    x2="480"
-                    y2="20"
-                    stroke="#E5E7EB"
-                    strokeDasharray="4 4"
-                  />
-                  <line
-                    x1="40"
-                    y1="70"
-                    x2="480"
-                    y2="70"
-                    stroke="#E5E7EB"
-                    strokeDasharray="4 4"
-                  />
-                  <line
-                    x1="40"
-                    y1="120"
-                    x2="480"
-                    y2="120"
-                    stroke="#E5E7EB"
-                    strokeDasharray="4 4"
-                  />
-                  <line x1="40" y1="170" x2="480" y2="170" stroke="#E5E7EB" />
-
-                  <rect
-                    x="70"
-                    y="50"
-                    width="30"
-                    height="120"
-                    rx="3"
-                    fill="#02E10E"
-                  />
-                  <rect x="70" y="110" width="30" height="60" fill="#284027" />
-
-                  <rect
-                    x="140"
-                    y="30"
-                    width="30"
-                    height="140"
-                    rx="3"
-                    fill="#02E10E"
-                  />
-                  <rect x="140" y="90" width="30" height="80" fill="#D5E2C4" />
-                  <rect x="140" y="130" width="30" height="40" fill="#7A5535" />
-
-                  <rect
-                    x="210"
-                    y="80"
-                    width="30"
-                    height="90"
-                    rx="3"
-                    fill="#02E10E"
-                  />
-                  <rect x="210" y="120" width="30" height="50" fill="#284027" />
-
-                  <rect
-                    x="280"
-                    y="60"
-                    width="30"
-                    height="110"
-                    rx="3"
-                    fill="#02E10E"
-                  />
-                  <rect x="280" y="100" width="30" height="70" fill="#D5E2C4" />
-
-                  <rect
-                    x="350"
-                    y="100"
-                    width="30"
-                    height="70"
-                    rx="3"
-                    fill="#02E10E"
-                  />
-                  <rect x="350" y="130" width="30" height="40" fill="#7A5535" />
-
-                  <rect
-                    x="420"
-                    y="70"
-                    width="30"
-                    height="100"
-                    rx="3"
-                    fill="#02E10E"
-                  />
-                  <rect x="420" y="110" width="30" height="60" fill="#284027" />
-
-                  <text
-                    x="85"
-                    y="185"
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#4B5563"
-                    fontWeight="bold"
-                  >
-                    Jan
-                  </text>
-                  <text
-                    x="155"
-                    y="185"
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#4B5563"
-                    fontWeight="bold"
-                  >
-                    Feb
-                  </text>
-                  <text
-                    x="225"
-                    y="185"
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#4B5563"
-                    fontWeight="bold"
-                  >
-                    Mar
-                  </text>
-                  <text
-                    x="295"
-                    y="185"
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#4B5563"
-                    fontWeight="bold"
-                  >
-                    Apr
-                  </text>
-                  <text
-                    x="365"
-                    y="185"
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#4B5563"
-                    fontWeight="bold"
-                  >
-                    Mei
-                  </text>
-                  <text
-                    x="435"
-                    y="185"
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#4B5563"
-                    fontWeight="bold"
-                  >
-                    Jun
-                  </text>
-                </svg>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="text-xl font-extrabold text-gray-900">
-            Manajemen Akun
-          </h2>
-          <hr className="border-gray-300" />
-
-          <div
-            className="rounded-[5px] p-6 md:p-8 flex flex-col items-center justify-between text-white bg-cover bg-center space-y-6"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(122, 85, 53, 0.75), rgba(122, 85, 53, 0.8)), url('/rice_terrace_hero.png')",
-            }}
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
-              {[
-                {
-                  count: "700+",
-                  label: "Masyarakat Adat",
-                  desc: "Pemilik pengetahuan tradisional lisan",
-                },
-                {
-                  count: "150+",
-                  label: "Validator",
-                  desc: "Akademisi & pakar keanekaragaman",
-                },
-                {
-                  count: "150+",
-                  label: "Fasilitator",
-                  desc: "Penyuluh & pendamping lapangan",
-                },
-              ].map((role, idx) => (
-                <div
-                  key={idx}
-                  className="bg-kms-brown rounded-[5px] p-6 text-center border border-white/20 shadow-sm flex flex-col items-center justify-center"
-                >
-                  <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-3">
-                    <Users className="w-6 h-6 text-kms-green-light" />
-                  </div>
-                  <span className="text-2xl md:text-3xl font-extrabold block">
-                    {role.count}
+            <div className="bg-white p-6 rounded-[5px] shadow-sm border border-gray-200/50 grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-extrabold text-gray-800">
+                    Public Visit (Trend)
                   </span>
-                  <span className="text-sm font-extrabold text-kms-green-light mt-1 block">
-                    {role.label}
-                  </span>
-                  <span className="text-xs text-gray-200 mt-2 block font-normal leading-relaxed">
-                    {role.desc}
+                  <span className="text-xs text-kms-blue-edit font-semibold">
+                    Aktif
                   </span>
                 </div>
-              ))}
-            </div>
+                <div className="w-full bg-gray-50 rounded-lg p-2 flex items-center justify-center">
+                  <svg className="w-full h-48" viewBox="0 0 500 200">
+                    <defs>
+                      <linearGradient
+                        id="chartGradient"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="#02E10E" stopOpacity="0.3" />
+                        <stop
+                          offset="100%"
+                          stopColor="#02E10E"
+                          stopOpacity="0.0"
+                        />
+                      </linearGradient>
+                    </defs>
 
-            <button
-              onClick={() => onNavigate("manage-accounts")}
-              className="bg-kms-green-dark hover:bg-emerald-950 active:scale-95 text-white text-sm font-extrabold px-8 py-3 rounded-[5px] border border-white/10 transition-all duration-200 cursor-pointer"
+                    <line
+                      x1="40"
+                      y1="20"
+                      x2="480"
+                      y2="20"
+                      stroke="#E5E7EB"
+                      strokeDasharray="4 4"
+                    />
+                    <line
+                      x1="40"
+                      y1="70"
+                      x2="480"
+                      y2="70"
+                      stroke="#E5E7EB"
+                      strokeDasharray="4 4"
+                    />
+                    <line
+                      x1="40"
+                      y1="120"
+                      x2="480"
+                      y2="120"
+                      stroke="#E5E7EB"
+                      strokeDasharray="4 4"
+                    />
+                    <line x1="40" y1="170" x2="480" y2="170" stroke="#E5E7EB" />
+
+                    <path
+                      d="M 40 170 C 100 120, 150 140, 200 90 C 250 40, 300 30, 350 70 C 400 110, 440 130, 480 120 L 480 170 L 40 170 Z"
+                      fill="url(#chartGradient)"
+                    />
+
+                    <path
+                      d="M 40 170 C 100 120, 150 140, 200 90 C 250 40, 300 30, 350 70 C 400 110, 440 130, 480 120"
+                      fill="none"
+                      stroke="#284027"
+                      strokeWidth="3.5"
+                    />
+
+                    <circle
+                      cx="300"
+                      cy="38"
+                      r="6"
+                      fill="#02E10E"
+                      stroke="#fff"
+                      strokeWidth="2"
+                    />
+                    <text
+                      x="300"
+                      y="24"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fontWeight="bold"
+                      fill="#284027"
+                    >
+                      4.520 Vis
+                    </text>
+
+                    <text
+                      x="40"
+                      y="185"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#9CA3AF"
+                    >
+                      Min
+                    </text>
+                    <text
+                      x="260"
+                      y="185"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#9CA3AF"
+                    >
+                      Tengah
+                    </text>
+                    <text
+                      x="480"
+                      y="185"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#9CA3AF"
+                    >
+                      Max
+                    </text>
+                  </svg>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-extrabold text-gray-800">
+                    Public Visit (Bulanan)
+                  </span>
+                  <span className="text-xs text-gray-500 font-semibold">
+                    Jan - Jun
+                  </span>
+                </div>
+                <div className="w-full bg-gray-50 rounded-lg p-2 flex items-center justify-center">
+                  <svg className="w-full h-48" viewBox="0 0 500 200">
+                    <line
+                      x1="40"
+                      y1="20"
+                      x2="480"
+                      y2="20"
+                      stroke="#E5E7EB"
+                      strokeDasharray="4 4"
+                    />
+                    <line
+                      x1="40"
+                      y1="70"
+                      x2="480"
+                      y2="70"
+                      stroke="#E5E7EB"
+                      strokeDasharray="4 4"
+                    />
+                    <line
+                      x1="40"
+                      y1="120"
+                      x2="480"
+                      y2="120"
+                      stroke="#E5E7EB"
+                      strokeDasharray="4 4"
+                    />
+                    <line x1="40" y1="170" x2="480" y2="170" stroke="#E5E7EB" />
+
+                    <rect
+                      x="70"
+                      y="50"
+                      width="30"
+                      height="120"
+                      rx="3"
+                      fill="#02E10E"
+                    />
+                    <rect x="70" y="110" width="30" height="60" fill="#284027" />
+
+                    <rect
+                      x="140"
+                      y="30"
+                      width="30"
+                      height="140"
+                      rx="3"
+                      fill="#02E10E"
+                    />
+                    <rect x="140" y="90" width="30" height="80" fill="#D5E2C4" />
+                    <rect x="140" y="130" width="30" height="40" fill="#7A5535" />
+
+                    <rect
+                      x="210"
+                      y="80"
+                      width="30"
+                      height="90"
+                      rx="3"
+                      fill="#02E10E"
+                    />
+                    <rect x="210" y="120" width="30" height="50" fill="#284027" />
+
+                    <rect
+                      x="280"
+                      y="60"
+                      width="30"
+                      height="110"
+                      rx="3"
+                      fill="#02E10E"
+                    />
+                    <rect x="280" y="100" width="30" height="70" fill="#D5E2C4" />
+
+                    <rect
+                      x="350"
+                      y="100"
+                      width="30"
+                      height="70"
+                      rx="3"
+                      fill="#02E10E"
+                    />
+                    <rect x="350" y="130" width="30" height="40" fill="#7A5535" />
+
+                    <rect
+                      x="420"
+                      y="70"
+                      width="30"
+                      height="100"
+                      rx="3"
+                      fill="#02E10E"
+                    />
+                    <rect x="420" y="110" width="30" height="60" fill="#284027" />
+
+                    <text
+                      x="85"
+                      y="185"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#4B5563"
+                      fontWeight="bold"
+                    >
+                      Jan
+                    </text>
+                    <text
+                      x="155"
+                      y="185"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#4B5563"
+                      fontWeight="bold"
+                    >
+                      Feb
+                    </text>
+                    <text
+                      x="225"
+                      y="185"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#4B5563"
+                      fontWeight="bold"
+                    >
+                      Mar
+                    </text>
+                    <text
+                      x="295"
+                      y="185"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#4B5563"
+                      fontWeight="bold"
+                    >
+                      Apr
+                    </text>
+                    <text
+                      x="365"
+                      y="185"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#4B5563"
+                      fontWeight="bold"
+                    >
+                      Mei
+                    </text>
+                    <text
+                      x="435"
+                      y="185"
+                      textAnchor="middle"
+                      fontSize="10"
+                      fill="#4B5563"
+                      fontWeight="bold"
+                    >
+                      Jun
+                    </text>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {(isAdmin || isKlhk) && (
+          <section className="space-y-3">
+            <h2 className="text-xl font-extrabold text-gray-900">
+              Manajemen Akun
+            </h2>
+            <hr className="border-gray-300" />
+
+            <div
+              className="rounded-[5px] p-6 md:p-8 flex flex-col items-center justify-between text-white bg-cover bg-center space-y-6"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(122, 85, 53, 0.75), rgba(122, 85, 53, 0.8)), url('/rice_terrace_hero.png')",
+              }}
             >
-              Kelola Akun
-            </button>
-          </div>
-        </section>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
+                {[
+                  {
+                    count: "700+",
+                    label: "Masyarakat Adat",
+                    desc: "Pemilik pengetahuan tradisional lisan",
+                  },
+                  {
+                    count: "150+",
+                    label: "Validator",
+                    desc: "Akademisi & pakar keanekaragaman",
+                  },
+                  {
+                    count: "150+",
+                    label: "Fasilitator",
+                    desc: "Penyuluh & pendamping lapangan",
+                  },
+                ].map((role, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-kms-brown rounded-[5px] p-6 text-center border border-white/20 shadow-sm flex flex-col items-center justify-center"
+                  >
+                    <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-3">
+                      <Users className="w-6 h-6 text-kms-green-light" />
+                    </div>
+                    <span className="text-2xl md:text-3xl font-extrabold block">
+                      {role.count}
+                    </span>
+                    <span className="text-sm font-extrabold text-kms-green-light mt-1 block">
+                      {role.label}
+                    </span>
+                    <span className="text-xs text-gray-200 mt-2 block font-normal leading-relaxed">
+                      {role.desc}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {isAdmin && (
+                <button
+                  onClick={() => onNavigate("manage-accounts")}
+                  className="bg-kms-green-dark hover:bg-emerald-950 active:scale-95 text-white text-sm font-extrabold px-8 py-3 rounded-[5px] border border-white/10 transition-all duration-200 cursor-pointer"
+                >
+                  Kelola Akun
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
+        {(isAdmin || isKlhk || isFasilitator) && (
+          <section className="space-y-3">
+            <h2 className="text-xl font-extrabold text-gray-900">
+              Peta Sebaran Varietas Lokal
+            </h2>
+            <hr className="border-gray-300" />
+            <div className="bg-white p-4 rounded-[5px] shadow-sm border border-gray-200/50 flex flex-col items-center justify-center">
+              <img
+                src="/indonesia_map.png"
+                alt="Peta Sebaran Varietas Lokal"
+                className="w-full max-w-4xl h-auto rounded-[5px] object-contain"
+              />
+            </div>
+          </section>
+        )}
 
         <section className="space-y-3">
           <div className="flex justify-between items-center">
@@ -782,13 +865,18 @@ export default function DashboardPage({
                 </select>
               </div>
 
-              <button
-                onClick={() => setShowChoiceOverlay(true)}
-                className="bg-kms-green-dark hover:bg-emerald-800 active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-[5px] transition-all flex items-center cursor-pointer w-full md:w-auto justify-center"
-              >
-                <Plus className="w-4 h-4 mr-1.5" />
-                Add Data
-              </button>
+              {(isMasyarakat || isFasilitator || isAdmin) && (
+                <button
+                  onClick={() => {
+                    setActiveEntryId(null);
+                    setShowChoiceOverlay(true);
+                  }}
+                  className="bg-kms-green-dark hover:bg-emerald-800 active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-[5px] transition-all flex items-center cursor-pointer w-full md:w-auto justify-center"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Add Data
+                </button>
+              )}
             </div>
 
             <div className="overflow-x-auto border border-gray-200 rounded-[5px]">
@@ -838,29 +926,45 @@ export default function DashboardPage({
                         </td>
                         <td className="px-4 py-3.5 text-center">
                           <div className="flex justify-center">
-                            <button
-                              onClick={() =>
-                                handleToggleStatus(item.id, item.status)
-                              }
-                              className={`w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-200 outline-none border-none ${
-                                item.status === "Aktif"
-                                  ? "bg-kms-green-status"
-                                  : "bg-gray-300"
-                              }`}
-                              title={
-                                item.status === "Aktif"
-                                  ? "Set to Verification"
-                                  : "Set to Active"
-                              }
-                            >
-                              <div
-                                className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${
+                            {isAdmin ? (
+                              <button
+                                onClick={() =>
+                                  handleToggleStatus(item.id, item.status)
+                                }
+                                className={`w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-200 outline-none border-none ${
                                   item.status === "Aktif"
-                                    ? "translate-x-5"
-                                    : "translate-x-0"
+                                    ? "bg-kms-green-status"
+                                    : "bg-gray-300"
                                 }`}
-                              />
-                            </button>
+                                title={
+                                  item.status === "Aktif"
+                                    ? "Set to Verification"
+                                    : "Set to Active"
+                                }
+                              >
+                                <div
+                                  className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${
+                                    item.status === "Aktif"
+                                      ? "translate-x-5"
+                                      : "translate-x-0"
+                                  }`}
+                                />
+                              </button>
+                            ) : (
+                              <span
+                                className={`px-2.5 py-1 rounded-[5px] text-xs font-bold ${
+                                  item.status === "Aktif"
+                                    ? "bg-green-100 text-green-800"
+                                    : item.status === "Ditolak"
+                                    ? "bg-red-100 text-red-800"
+                                    : item.status === "Perlu Direvisi"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-yellow-100 text-yellow-800"
+                                }`}
+                              >
+                                {item.status}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3.5 text-center">
@@ -876,20 +980,44 @@ export default function DashboardPage({
                             >
                               <Share2 className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => handleEditClick(item.id)}
-                              className="text-gray-500 hover:text-kms-blue-edit cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
-                              title="Validate Details / Edit"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item.id)}
-                              className="text-gray-500 hover:text-kms-red cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
-                              title="Delete Entry"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+
+                            {isPakar && (
+                              <button
+                                onClick={() => handleEditClick(item)}
+                                className="bg-kms-blue-accent hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-[5px] transition-all cursor-pointer border-none"
+                              >
+                                Verifikasi
+                              </button>
+                            )}
+
+                            {(isMasyarakat || isFasilitator) && (
+                              <button
+                                onClick={() => handleEditClick(item)}
+                                className="text-gray-500 hover:text-kms-blue-edit cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
+                                title="Edit Entry"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {isAdmin && (
+                              <>
+                                <button
+                                  onClick={() => handleEditClick(item)}
+                                  className="text-gray-500 hover:text-kms-blue-edit cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
+                                  title="Validate / Edit"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(item.id)}
+                                  className="text-gray-500 hover:text-kms-red cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
+                                  title="Delete Entry"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -933,155 +1061,161 @@ export default function DashboardPage({
           </div>
         </section>
 
-        <section className="space-y-3">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-extrabold text-gray-900">
-              Kalender Tanam
-            </h2>
-          </div>
-          <hr className="border-gray-300" />
-
-          <div className="bg-white rounded-[5px] shadow-sm border border-gray-200/50 p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
-              <div className="flex items-center space-x-3 select-none">
-                <button className="p-1 rounded hover:bg-gray-100 border border-gray-300 text-gray-600 cursor-pointer">
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="text-base font-extrabold text-gray-800">
-                  January 2025
-                </span>
-                <button className="p-1 rounded hover:bg-gray-100 border border-gray-300 text-gray-600 cursor-pointer">
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              <button
-                onClick={() => {
-                  setSelectedDay(1);
-                  setIsEventModalOpen(true);
-                }}
-                className="bg-kms-green-dark hover:bg-emerald-800 active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-[5px] transition flex items-center cursor-pointer w-full sm:w-auto justify-center"
-              >
-                <Plus className="w-4 h-4 mr-1.5" />
-                Add Event
-              </button>
+        {(isAdmin || isKlhk || isFasilitator) && (
+          <section className="space-y-3">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-extrabold text-gray-900">
+                Kalender Tanam
+              </h2>
             </div>
+            <hr className="border-gray-300" />
 
-            <div className="border border-gray-200 rounded-[5px] overflow-hidden">
-              <div className="grid grid-cols-7 bg-kms-green-dark/5 text-center py-2 text-xs font-extrabold text-gray-700 border-b border-gray-200">
-                <span>MON</span>
-                <span>TUE</span>
-                <span>WED</span>
-                <span>THU</span>
-                <span>FRI</span>
-                <span>SAT</span>
-                <span>SUN</span>
-              </div>
-
-              <div className="grid grid-cols-7 bg-white text-gray-700">
-                {calendarDays.map((cell, idx) => {
-                  const dayEvents = cell.isCurrentMonth
-                    ? calendarEvents[cell.day]
-                    : null;
-
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => {
-                        if (cell.isCurrentMonth) {
-                          setSelectedDay(cell.day);
-                          setSelectedDayEvents(dayEvents || []);
-                        }
-                      }}
-                      className={`min-h-24 md:min-h-28 p-1.5 border-r border-b border-gray-200 flex flex-col text-left transition-colors cursor-pointer ${
-                        cell.isCurrentMonth
-                          ? "hover:bg-gray-50/80 bg-white"
-                          : "bg-gray-50 text-gray-400"
-                      } ${selectedDay === cell.day && cell.isCurrentMonth ? "bg-kms-green-light/20 ring-1 ring-kms-green-dark/20" : ""}`}
-                    >
-                      <span
-                        className={`text-xs md:text-sm font-bold block mb-1 ${
-                          cell.isCurrentMonth
-                            ? "text-gray-800"
-                            : "text-gray-400"
-                        }`}
-                      >
-                        {cell.day}
-                      </span>
-
-                      <div className="space-y-1 overflow-y-auto max-h-17.5 pr-0.5">
-                        {dayEvents &&
-                          dayEvents.map((evt, eIdx) => {
-                            let colorClass =
-                              "bg-blue-50 text-blue-600 border-blue-200";
-                            if (evt.type === "panen")
-                              colorClass =
-                                "bg-orange-50 text-orange-600 border-orange-200";
-                            if (evt.type === "audit")
-                              colorClass =
-                                "bg-purple-50 text-purple-600 border-purple-200";
-                            if (evt.type === "pupuk")
-                              colorClass =
-                                "bg-yellow-50 text-yellow-600 border-yellow-200";
-
-                            return (
-                              <span
-                                key={eIdx}
-                                title={evt.label}
-                                className={`block text-[9px] font-extrabold px-1 py-0.5 rounded border leading-tight truncate ${colorClass}`}
-                              >
-                                {evt.label}
-                              </span>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {selectedDay !== null && (
-              <div className="bg-kms-green-dark/5 rounded-[5px] p-4 text-sm space-y-2 border border-kms-green-light/20">
-                <div className="flex justify-between items-center">
-                  <span className="font-extrabold text-gray-800">
-                    Agenda: {selectedDay} Januari 2025
+            <div className="bg-white rounded-[5px] shadow-sm border border-gray-200/50 p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div className="flex items-center space-x-3 select-none">
+                  <button className="p-1 rounded hover:bg-gray-100 border border-gray-300 text-gray-600 cursor-pointer">
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-base font-extrabold text-gray-800">
+                    January 2025
                   </span>
-                  <button
-                    onClick={() => setIsEventModalOpen(true)}
-                    className="text-xs text-kms-green-dark hover:underline font-bold cursor-pointer"
-                  >
-                    + Tambah Agenda
+                  <button className="p-1 rounded hover:bg-gray-100 border border-gray-300 text-gray-600 cursor-pointer">
+                    <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
-                {selectedDayEvents && selectedDayEvents.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                    {selectedDayEvents.map((evt, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-white border border-gray-200 rounded p-2.5 flex items-center space-x-2 shadow-xs"
-                      >
-                        <CalendarIcon className="w-4 h-4 text-kms-green-dark" />
-                        <div>
-                          <p className="font-semibold text-gray-800 text-xs">
-                            {evt.label}
-                          </p>
-                          <p className="text-[10px] text-gray-400 capitalize">
-                            {evt.type}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500 font-normal py-2">
-                    Tidak ada agenda kegiatan untuk tanggal ini.
-                  </p>
+
+                {(isAdmin || isFasilitator) && (
+                  <button
+                    onClick={() => {
+                      setSelectedDay(1);
+                      setIsEventModalOpen(true);
+                    }}
+                    className="bg-kms-green-dark hover:bg-emerald-800 active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-[5px] transition flex items-center cursor-pointer w-full sm:w-auto justify-center"
+                  >
+                    <Plus className="w-4 h-4 mr-1.5" />
+                    Add Event
+                  </button>
                 )}
               </div>
-            )}
-          </div>
-        </section>
+
+              <div className="border border-gray-200 rounded-[5px] overflow-hidden">
+                <div className="grid grid-cols-7 bg-kms-green-dark/5 text-center py-2 text-xs font-extrabold text-gray-700 border-b border-gray-200">
+                  <span>MON</span>
+                  <span>TUE</span>
+                  <span>WED</span>
+                  <span>THU</span>
+                  <span>FRI</span>
+                  <span>SAT</span>
+                  <span>SUN</span>
+                </div>
+
+                <div className="grid grid-cols-7 bg-white text-gray-700">
+                  {calendarDays.map((cell, idx) => {
+                    const dayEvents = cell.isCurrentMonth
+                      ? calendarEvents[cell.day]
+                      : null;
+
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          if (cell.isCurrentMonth) {
+                            setSelectedDay(cell.day);
+                            setSelectedDayEvents(dayEvents || []);
+                          }
+                        }}
+                        className={`min-h-24 md:min-h-28 p-1.5 border-r border-b border-gray-200 flex flex-col text-left transition-colors cursor-pointer ${
+                          cell.isCurrentMonth
+                            ? "hover:bg-gray-50/80 bg-white"
+                            : "bg-gray-50 text-gray-400"
+                        } ${selectedDay === cell.day && cell.isCurrentMonth ? "bg-kms-green-light/20 ring-1 ring-kms-green-dark/20" : ""}`}
+                      >
+                        <span
+                          className={`text-xs md:text-sm font-bold block mb-1 ${
+                            cell.isCurrentMonth
+                              ? "text-gray-800"
+                              : "text-gray-400"
+                          }`}
+                        >
+                          {cell.day}
+                        </span>
+
+                        <div className="space-y-1 overflow-y-auto max-h-17.5 pr-0.5">
+                          {dayEvents &&
+                            dayEvents.map((evt, eIdx) => {
+                              let colorClass =
+                                "bg-blue-50 text-blue-600 border-blue-200";
+                              if (evt.type === "panen")
+                                colorClass =
+                                  "bg-orange-50 text-orange-600 border-orange-200";
+                              if (evt.type === "audit")
+                                colorClass =
+                                  "bg-purple-50 text-purple-600 border-purple-200";
+                              if (evt.type === "pupuk")
+                                colorClass =
+                                  "bg-yellow-50 text-yellow-600 border-yellow-200";
+
+                              return (
+                                <span
+                                  key={eIdx}
+                                  title={evt.label}
+                                  className={`block text-[9px] font-extrabold px-1 py-0.5 rounded border leading-tight truncate ${colorClass}`}
+                                >
+                                  {evt.label}
+                                </span>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {selectedDay !== null && (
+                <div className="bg-kms-green-dark/5 rounded-[5px] p-4 text-sm space-y-2 border border-kms-green-light/20">
+                  <div className="flex justify-between items-center">
+                    <span className="font-extrabold text-gray-800">
+                      Agenda: {selectedDay} Januari 2025
+                    </span>
+                    {(isAdmin || isFasilitator) && (
+                      <button
+                        onClick={() => setIsEventModalOpen(true)}
+                        className="text-xs text-kms-green-dark hover:underline font-bold cursor-pointer"
+                      >
+                        + Tambah Agenda
+                      </button>
+                    )}
+                  </div>
+                  {selectedDayEvents && selectedDayEvents.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                      {selectedDayEvents.map((evt, idx) => (
+                        <div
+                          key={idx}
+                          className="bg-white border border-gray-200 rounded p-2.5 flex items-center space-x-2 shadow-xs"
+                        >
+                          <CalendarIcon className="w-4 h-4 text-kms-green-dark" />
+                          <div>
+                            <p className="font-semibold text-gray-800 text-xs">
+                              {evt.label}
+                            </p>
+                            <p className="text-[10px] text-gray-400 capitalize">
+                              {evt.type}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 font-normal py-2">
+                      Tidak ada agenda kegiatan untuk tanggal ini.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         <section className="space-y-3">
           <h2 className="text-xl font-extrabold text-gray-900">
@@ -1135,6 +1269,33 @@ export default function DashboardPage({
             </div>
           </div>
         </section>
+
+        {isMasyarakat && (
+          <section className="bg-white p-6 rounded-[5px] shadow-sm border border-gray-200/50 mt-8">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="text-left">
+                <h3 className="text-lg font-bold text-gray-900">Upload Formulir FPIC (Persetujuan Bebas Didahulukan)</h3>
+                <p className="text-sm text-gray-600 font-normal mt-1">
+                  Pastikan Anda telah mengunggah dokumen persetujuan adat yang ditandatangani untuk menjamin keabsahan data.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = ".pdf,.doc,.docx";
+                  input.onchange = () => {
+                    alert("Dokumen FPIC berhasil diunggah dan disimpan!");
+                  };
+                  input.click();
+                }}
+                className="bg-kms-green-dark hover:bg-emerald-950 active:scale-95 text-white text-sm font-bold px-6 py-3 rounded-[5px] cursor-pointer border-none whitespace-nowrap shadow-sm"
+              >
+                Upload Formulir FPIC
+              </button>
+            </div>
+          </section>
+        )}
       </div>
 
       {showChoiceOverlay && (
@@ -1149,6 +1310,7 @@ export default function DashboardPage({
             <div className="flex flex-col space-y-2 pt-2">
               <button
                 onClick={() => {
+                  setActiveEntryId(null);
                   setShowChoiceOverlay(false);
                   onNavigate("add-data-pengetahuan");
                 }}
@@ -1158,6 +1320,7 @@ export default function DashboardPage({
               </button>
               <button
                 onClick={() => {
+                  setActiveEntryId(null);
                   setShowChoiceOverlay(false);
                   onNavigate("add-data-benih");
                 }}

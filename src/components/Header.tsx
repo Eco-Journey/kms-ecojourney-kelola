@@ -21,6 +21,10 @@ export default function Header({
 
   const isActive = (page: string) => currentPage === page;
   const isLoggedIn = user !== null;
+  const userRole = user?.role?.toLowerCase() || "";
+  const canAddData = ["administrator", "masyarakat_adat", "masyarakat adat", "fasilitator", "penyuluh"].includes(userRole);
+  const canValidate = ["administrator", "pakar", "validator"].includes(userRole);
+  const isAdmin = userRole === "administrator";
 
   const handleNav = (page: string) => {
     onNavigate(page);
@@ -82,42 +86,43 @@ export default function Header({
                   Dashboard
                 </button>
 
-                <div ref={dropdownRef} className="relative group">
-                  <button
-                    onClick={() => setIsAddDataOpen(!isAddDataOpen)}
-                    className={`flex items-center px-3 py-2 text-sm font-semibold rounded-[5px] transition-colors cursor-pointer border-none ${
-                      ["add-data-benih", "add-data-pengetahuan"].includes(
-                        currentPage,
-                      )
-                        ? "bg-white/10 text-white"
-                        : "text-gray-300 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    Tambah Data
-                    <ChevronDown
-                      className={`w-4 h-4 ml-1 opacity-70 transition-transform duration-200 ${isAddDataOpen ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  {isAddDataOpen && (
-                    <div className="absolute left-0 mt-2 w-52 bg-white rounded-[5px] shadow-xl py-1.5 border border-gray-200 z-100">
-                      <button
-                        onClick={() => handleNav("add-data-benih")}
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-kms-green-dark font-semibold cursor-pointer border-none transition-colors"
-                      >
-                        Benih / Varietas
-                      </button>
-                      <button
-                        onClick={() => handleNav("add-data-pengetahuan")}
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-kms-green-dark font-semibold cursor-pointer border-none transition-colors"
-                      >
-                        Pengetahuan Adat
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {canAddData && (
+                  <div ref={dropdownRef} className="relative group">
+                    <button
+                      onClick={() => setIsAddDataOpen(!isAddDataOpen)}
+                      className={`flex items-center px-3 py-2 text-sm font-semibold rounded-[5px] transition-colors cursor-pointer border-none ${
+                        ["add-data-benih", "add-data-pengetahuan"].includes(
+                          currentPage,
+                        )
+                          ? "bg-white/10 text-white"
+                          : "text-gray-300 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      Tambah Data
+                      <ChevronDown
+                        className={`w-4 h-4 ml-1 opacity-70 transition-transform duration-200 ${isAddDataOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                    {isAddDataOpen && (
+                      <div className="absolute left-0 mt-2 w-52 bg-white rounded-[5px] shadow-xl py-1.5 border border-gray-200 z-100">
+                        <button
+                          onClick={() => handleNav("add-data-benih")}
+                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-kms-green-dark font-semibold cursor-pointer border-none transition-colors"
+                        >
+                          Benih / Varietas
+                        </button>
+                        <button
+                          onClick={() => handleNav("add-data-pengetahuan")}
+                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-kms-green-dark font-semibold cursor-pointer border-none transition-colors"
+                        >
+                          Pengetahuan Adat
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                {(user.role === "administrator" ||
-                  user.role === "fasilitator") && (
+                {canValidate && (
                   <button
                     onClick={() => handleNav("validasi-data")}
                     className={`px-3 py-2 text-sm font-semibold rounded-[5px] transition-colors cursor-pointer border-none ${
@@ -130,7 +135,7 @@ export default function Header({
                   </button>
                 )}
 
-                {user.role === "administrator" && (
+                {isAdmin && (
                   <button
                     onClick={() => handleNav("manage-accounts")}
                     className={`px-3 py-2 text-sm font-semibold rounded-[5px] transition-colors cursor-pointer border-none ${
@@ -213,26 +218,27 @@ export default function Header({
                 >
                   Dashboard
                 </button>
-                <div className="pl-3 py-1 space-y-1">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">
-                    Tambah Data
-                  </span>
-                  <button
-                    onClick={() => handleNav("add-data-benih")}
-                    className="block w-full text-left px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/10 hover:text-white rounded-md border-none bg-transparent transition-colors"
-                  >
-                    Benih / Varietas
-                  </button>
-                  <button
-                    onClick={() => handleNav("add-data-pengetahuan")}
-                    className="block w-full text-left px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/10 hover:text-white rounded-md border-none bg-transparent transition-colors"
-                  >
-                    Pengetahuan Adat
-                  </button>
-                </div>
+                {canAddData && (
+                  <div className="pl-3 py-1 space-y-1">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                      Tambah Data
+                    </span>
+                    <button
+                      onClick={() => handleNav("add-data-benih")}
+                      className="block w-full text-left px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/10 hover:text-white rounded-md border-none bg-transparent transition-colors"
+                    >
+                      Benih / Varietas
+                    </button>
+                    <button
+                      onClick={() => handleNav("add-data-pengetahuan")}
+                      className="block w-full text-left px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/10 hover:text-white rounded-md border-none bg-transparent transition-colors"
+                    >
+                      Pengetahuan Adat
+                    </button>
+                  </div>
+                )}
 
-                {(user.role === "administrator" ||
-                  user.role === "fasilitator") && (
+                {canValidate && (
                   <button
                     onClick={() => handleNav("validasi-data")}
                     className="block w-full text-left px-3 py-2.5 text-sm font-semibold text-gray-300 hover:bg-white/10 hover:text-white rounded-md border-none bg-transparent transition-colors"
@@ -241,7 +247,7 @@ export default function Header({
                   </button>
                 )}
 
-                {user.role === "administrator" && (
+                {isAdmin && (
                   <button
                     onClick={() => handleNav("manage-accounts")}
                     className="block w-full text-left px-3 py-2.5 text-sm font-semibold text-gray-300 hover:bg-white/10 hover:text-white rounded-md border-none bg-transparent transition-colors"
