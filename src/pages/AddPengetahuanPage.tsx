@@ -99,6 +99,7 @@ export default function AddPengetahuanPage({
         ...editEntry,
         nama: judulPengetahuan,
         kategori: 'Pengetahuan ' + kategori,
+        status: (editEntry.status === "Perlu Revisi" || editEntry.status === "Ditolak") ? "Verifikasi" : editEntry.status,
         tanggal: tanggalPublikasi || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
         lokasi: {
           kota: kotaKabupaten,

@@ -1,126 +1,229 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { MapPin } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import L from 'leaflet';
 
 interface MapLocatorProps {
   readOnly?: boolean;
   latitude: number | null;
   longitude: number | null;
   onChange?: (lat: number, lng: number) => void;
+  pins?: Array<{ 
+    id: string; 
+    lat?: number | null; 
+    lng?: number | null; 
+    cx?: number | null; 
+    cy?: number | null; 
+    nama: string; 
+    type: string; 
+  }>;
 }
+
+// Custom SVG-based Pin Icon creator to ensure 100% offline support and avoid Vite asset URL resolution bugs
+const createCustomPinIcon = (color: string = '#284027') => {
+  return L.divIcon({
+    html: `
+      <div class="relative flex items-center justify-center w-8 h-8 -translate-y-2 select-none pointer-events-none">
+        <svg class="w-8 h-8 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2ZM12 11.5C10.62 11.5 9.5 10.38 9.5 9C9.5 7.62 10.62 6.5 12 6.5C13.38 6.5 14.5 7.62 14.5 9C14.5 10.38 13.38 11.5 12 11.5Z" fill="${color}"/>
+        </svg>
+        <div class="absolute w-2 h-2 rounded-full bg-white top-[7px] border border-black/10"></div>
+      </div>
+    `,
+    className: 'custom-leaflet-pin',
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -32]
+  });
+};
 
 export default function MapLocator({ 
   readOnly = false, 
   latitude, 
   longitude, 
-  onChange 
+  onChange,
+  pins
 }: MapLocatorProps): React.ReactElement {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [pinPosition, setPinPosition] = useState<{ x: number; y: number } | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  const markerGroupRef = useRef<L.LayerGroup | null>(null);
 
-  // Convert lat/lng to container x/y percentages
-  // Indonesia coordinates boundaries approx: 
-  // Longitude: 95°E to 141°E (width of 46 degrees)
-  // Latitude: 6°N to 11°S (height of 17 degrees)
+  // Initialize Map Instance
   useEffect(() => {
-    if (latitude !== null && longitude !== null) {
-      // Longitude: 95 is 0%, 141 is 100%
-      const x = ((longitude - 95) / 46) * 100;
-      // Latitude: 6 is 0% (top), -11 is 100% (bottom)
-      const y = ((6 - latitude) / 17) * 100;
-      
-      // Clamp values between 0 and 100
-      setPinPosition({
-        x: Math.max(0, Math.min(100, x)),
-        y: Math.max(0, Math.min(100, y))
+    if (!mapContainerRef.current) return;
+
+    // Default coordinates centered on Indonesia if no point is provided
+    const initialLat = latitude !== null ? latitude : -2.5;
+    const initialLng = longitude !== null ? longitude : 118.0;
+    const initialZoom = latitude !== null && longitude !== null ? 8 : 5;
+
+    const map = L.map(mapContainerRef.current, {
+      center: [initialLat, initialLng],
+      zoom: initialZoom,
+      zoomControl: !readOnly,
+      attributionControl: false,
+    });
+
+    // Load OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+    }).addTo(map);
+
+    mapRef.current = map;
+    markerGroupRef.current = L.layerGroup().addTo(map);
+
+    // Interactive coordinate selector on map click
+    if (!readOnly && onChange) {
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        const { lat, lng } = e.latlng;
+        onChange(Number(lat.toFixed(4)), Number(lng.toFixed(4)));
       });
-    } else {
-      setPinPosition(null);
     }
-  }, [latitude, longitude]);
 
-  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>): void => {
-    if (readOnly || !onChange || !containerRef.current) return;
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [readOnly]);
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top;
+  // Handle active single coordinates selection (Add/Edit mode)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || readOnly) return;
 
-    const percentX = (clickX / rect.width) * 100;
-    const percentY = (clickY / rect.height) * 100;
+    if (latitude !== null && longitude !== null) {
+      const pos: L.LatLngExpression = [latitude, longitude];
 
-    // Convert percentages back to lat/lng
-    const lng = 95 + (percentX / 100) * 46;
-    const lat = 6 - (percentY / 100) * 17;
+      if (markerRef.current) {
+        markerRef.current.setLatLng(pos);
+      } else {
+        // Red pin for active editing marker
+        const activeIcon = createCustomPinIcon('#EB3131');
+        const marker = L.marker(pos, { 
+          draggable: true,
+          icon: activeIcon
+        }).addTo(map);
 
-    // Format coordinates to 4 decimal places
-    onChange(Number(lat.toFixed(4)), Number(lng.toFixed(4)));
-  };
+        // Update coordinates when marker is dragged
+        marker.on('dragend', () => {
+          const latLng = marker.getLatLng();
+          if (onChange) {
+            onChange(Number(latLng.lat.toFixed(4)), Number(latLng.lng.toFixed(4)));
+          }
+        });
+
+        markerRef.current = marker;
+      }
+
+      // Pan to the selected coordinate if map is not centered
+      const center = map.getCenter();
+      if (Math.abs(center.lat - latitude) > 0.05 || Math.abs(center.lng - longitude) > 0.05) {
+        map.setView(pos, map.getZoom() < 8 ? 8 : map.getZoom());
+      }
+    } else {
+      if (markerRef.current) {
+        markerRef.current.remove();
+        markerRef.current = null;
+      }
+    }
+  }, [latitude, longitude, readOnly]);
+
+  // Handle dashboard pins plot (Multiple markers)
+  useEffect(() => {
+    const map = mapRef.current;
+    const group = markerGroupRef.current;
+    if (!map || !group || !readOnly) return;
+
+    group.clearLayers();
+
+    if (pins && pins.length > 0) {
+      const bounds: L.LatLngExpression[] = [];
+
+      pins.forEach(pin => {
+        let pinLat: number | null = null;
+        let pinLng: number | null = null;
+
+        if (pin.lat !== undefined && pin.lat !== null && pin.lng !== undefined && pin.lng !== null) {
+          pinLat = pin.lat;
+          pinLng = pin.lng;
+        } else if (pin.cx !== undefined && pin.cx !== null && pin.cy !== undefined && pin.cy !== null) {
+          // Convert mockup SVG percentages to approximate lat/lng
+          const percentX = (pin.cx / 800) * 100;
+          const percentY = (pin.cy / 350) * 100;
+          pinLng = 95 + (percentX / 100) * 46;
+          pinLat = 6 - (percentY / 100) * 17;
+        }
+
+        if (pinLat !== null && pinLng !== null) {
+          const pos: L.LatLngExpression = [pinLat, pinLng];
+          bounds.push(pos);
+
+          // Color-code markers based on type: dark green for varieties/villages
+          const pinColor = pin.type === 'Desa' ? '#7A5535' : '#284027'; 
+          const icon = createCustomPinIcon(pinColor);
+          
+          const marker = L.marker(pos, { icon });
+          
+          const popupContent = `
+            <div class="font-sans text-left min-w-[120px]">
+              <strong class="text-xs font-extrabold text-kms-green-dark block">${pin.nama}</strong>
+              <span class="inline-block mt-1 px-1.5 py-0.5 rounded bg-kms-green-light/30 text-[9px] font-extrabold text-kms-green-dark uppercase">${pin.type}</span>
+              <div class="text-[9px] text-gray-400 font-medium mt-2">
+                Lintang: ${pinLat.toFixed(4)}<br/>
+                Bujur: ${pinLng.toFixed(4)}
+              </div>
+            </div>
+          `;
+          
+          marker.bindPopup(popupContent);
+          marker.bindTooltip(pin.nama, {
+            permanent: false,
+            direction: 'top',
+            className: 'font-sans text-[10px] font-bold text-kms-green-dark px-2 py-1 bg-white border border-kms-green-light rounded-[3px] shadow-sm'
+          });
+
+          group.addLayer(marker);
+        }
+      });
+
+      // Fit map boundaries to display all pins
+      if (bounds.length > 0) {
+        if (bounds.length === 1) {
+          map.setView(bounds[0], 8);
+        } else {
+          map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40] });
+        }
+      }
+    } else if (latitude !== null && longitude !== null) {
+      // Single marker in display mode (e.g. ValidasiDataPage)
+      const pos: L.LatLngExpression = [latitude, longitude];
+      const icon = createCustomPinIcon('#284027');
+      const marker = L.marker(pos, { icon });
+      
+      const popupContent = `
+        <div class="font-sans text-left">
+          <strong class="text-xs font-extrabold text-kms-green-dark block">Lokasi Komoditas</strong>
+          <div class="text-[9px] text-gray-400 font-medium mt-1">
+            Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}
+          </div>
+        </div>
+      `;
+      marker.bindPopup(popupContent);
+      group.addLayer(marker);
+      map.setView(pos, 8);
+    }
+  }, [pins, latitude, longitude, readOnly]);
 
   return (
     <div className="space-y-2">
       <div 
-        ref={containerRef}
-        onClick={handleMapClick}
-        className={`relative w-full h-44 md:h-52 bg-slate-50 border border-gray-300 rounded-[5px] overflow-hidden select-none ${
-          readOnly ? 'cursor-default' : 'cursor-crosshair hover:bg-slate-100/80 transition-colors'
-        }`}
-      >
-        {/* Background Grid Lines */}
-        <div className="absolute inset-0 grid grid-cols-12 grid-rows-6 opacity-35 pointer-events-none">
-          {Array.from({ length: 11 }).map((_, i) => (
-            <div key={`col-${i}`} className="border-r border-gray-200 h-full" style={{ gridColumnStart: i + 2 }} />
-          ))}
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={`row-${i}`} className="border-b border-gray-200 w-full" style={{ gridRowStart: i + 2 }} />
-          ))}
-        </div>
-
-        {/* Indonesia Outline Map Visual using custom SVG paths */}
-        <svg 
-          viewBox="0 0 800 350" 
-          className="absolute inset-0 w-full h-full p-4 text-gray-400 stroke-gray-500 fill-none pointer-events-none"
-          strokeWidth="1.5"
-        >
-          {/* Sumatra */}
-          <path d="M 60 70 L 100 120 L 180 180 L 220 220 L 210 230 L 170 190 L 90 140 L 40 80 Z" fill="#E5E7EB" stroke="#9CA3AF" />
-          {/* Java */}
-          <path d="M 230 240 L 300 242 L 380 250 L 410 255 L 410 262 L 350 258 L 290 250 L 225 248 Z" fill="#E5E7EB" stroke="#9CA3AF" />
-          {/* Kalimantan */}
-          <path d="M 290 90 L 340 70 L 410 110 L 410 160 L 370 200 L 300 190 L 280 140 Z" fill="#E5E7EB" stroke="#9CA3AF" />
-          {/* Sulawesi */}
-          <path d="M 450 110 L 490 110 L 490 130 L 460 145 L 490 165 L 500 195 L 485 198 L 470 170 L 440 170 L 435 130 Z" fill="#E5E7EB" stroke="#9CA3AF" />
-          {/* Papua */}
-          <path d="M 640 140 L 730 150 L 750 250 L 720 250 L 670 210 L 630 185 L 610 150 L 620 140 Z" fill="#E5E7EB" stroke="#9CA3AF" />
-          {/* Lesser Sunda Islands (Bali, Lombok, Sumbawa, Flores, Timor) */}
-          <path d="M 425 258 L 450 259 M 460 260 L 490 262 M 500 263 L 550 264 M 555 264 L 590 275" stroke="#9CA3AF" strokeWidth="3" strokeLinecap="round" />
-          {/* Maluku Islands */}
-          <path d="M 520 130 L 530 140 M 550 160 L 560 180 M 530 190 L 545 192" stroke="#9CA3AF" strokeWidth="4" strokeLinecap="round" />
-        </svg>
-
-        {/* Mapped marker pin */}
-        {pinPosition && (
-          <div 
-            className="absolute z-10 -translate-x-1/2 -translate-y-full transition-all duration-300 ease-out"
-            style={{ left: `${pinPosition.x}%`, top: `${pinPosition.y}%` }}
-          >
-            <div className="relative group flex items-center justify-center">
-              {/* Floating marker pin */}
-              <MapPin className="w-8 h-8 text-kms-red fill-white/80 filter drop-shadow-md animate-bounce" />
-              {/* Tiny radar ring */}
-              <span className="absolute bottom-0 w-2.5 h-1 bg-black/30 rounded-full blur-xs" />
-            </div>
-          </div>
-        )}
-
-        {/* Interactive Helper Label */}
-        {!readOnly && (
-          <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[10px] px-2 py-1 rounded select-none pointer-events-none">
-            Klik pada peta untuk menetapkan koordinat
-          </div>
-        )}
-      </div>
-
-      {/* Lat/Lng display boxes matching Image 1 & 4 */}
+        ref={mapContainerRef}
+        className="w-full h-56 md:h-64 bg-slate-100 border border-gray-300 rounded-[5px] overflow-hidden shadow-sm"
+        style={{ minHeight: '220px' }}
+      />
+      
+      {/* Lat/Lng display inputs */}
       <div className="grid grid-cols-2 gap-3 text-left">
         <div className="space-y-1">
           <span className="text-[10px] font-bold text-gray-500 block uppercase tracking-wider">Latitude (Lintang)</span>
@@ -129,7 +232,7 @@ export default function MapLocator({
             value={latitude !== null ? latitude : ''} 
             readOnly 
             placeholder="Contoh: -7.2575"
-            className="w-full border border-gray-300 bg-gray-50 rounded-[5px] px-3 py-2 text-xs outline-none text-gray-700 font-semibold"
+            className="w-full border border-gray-300 bg-gray-50 rounded-[5px] px-3 py-2 text-xs outline-none text-gray-700 font-semibold shadow-xs"
           />
         </div>
         <div className="space-y-1">
@@ -139,10 +242,16 @@ export default function MapLocator({
             value={longitude !== null ? longitude : ''} 
             readOnly 
             placeholder="Contoh: 112.7521"
-            className="w-full border border-gray-300 bg-gray-50 rounded-[5px] px-3 py-2 text-xs outline-none text-gray-700 font-semibold"
+            className="w-full border border-gray-300 bg-gray-50 rounded-[5px] px-3 py-2 text-xs outline-none text-gray-700 font-semibold shadow-xs"
           />
         </div>
       </div>
+      
+      {!readOnly && (
+        <p className="text-[10px] text-gray-500 text-left font-medium select-none">
+          * Klik pada peta untuk memilih koordinat, atau geser pin merah untuk menyesuaikan posisi.
+        </p>
+      )}
     </div>
   );
 }

@@ -100,6 +100,7 @@ export default function AddBenihPage({
         ...editEntry,
         nama: namaVarietas,
         kategori: 'Benih ' + kategori,
+        status: (editEntry.status === "Perlu Revisi" || editEntry.status === "Ditolak") ? "Verifikasi" : editEntry.status,
         tanggal: tanggalPenemuan || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
         lokasi: {
           kota: kotaKabupaten,

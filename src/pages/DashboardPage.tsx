@@ -18,15 +18,15 @@ import {
   Loader2,
 } from "lucide-react";
 import { User, DataEntry } from "../App";
-import { supabase } from "../lib/supabase";
+import MapLocator from "../components/MapLocator";
 
 interface DashboardPageProps {
   user: User | null;
   onNavigate: (page: string) => void;
   dataEntries?: DataEntry[];
-  onToggleEntryStatus?: (id: string) => void;
   onDeleteEntry?: (id: string) => void;
   setActiveEntryId: (id: string | null) => void;
+  dbConnectionStatus?: "connecting" | "connected" | "fallback";
 }
 
 interface CalendarEventItem {
@@ -42,9 +42,9 @@ export default function DashboardPage({
   user,
   onNavigate,
   dataEntries = [],
-  onToggleEntryStatus,
   onDeleteEntry,
   setActiveEntryId,
+  dbConnectionStatus = "connecting",
 }: DashboardPageProps): React.ReactElement {
   const userRole = user?.role?.toLowerCase() || "";
   const isMasyarakat = userRole === "masyarakat_adat" || userRole === "masyarakat adat";
@@ -57,8 +57,9 @@ export default function DashboardPage({
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
 
   useEffect(() => {
-    if (dataEntries && dataEntries.length > 0) {
+    if (dataEntries) {
       setLocalEntries(dataEntries);
+      setIsLoadingData(false);
     }
   }, [dataEntries]);
 
@@ -88,152 +89,11 @@ export default function DashboardPage({
   const [newEventLabel, setNewEventLabel] = useState<string>("");
   const [newEventType, setNewEventType] = useState<string>("tanam");
 
-  useEffect(() => {
-    let isMounted = true;
 
-    const fetchEntries = async () => {
-      setIsLoadingData(true);
-      try {
-        const { data, error } = await supabase
-          .from("data_entries")
-          .select("*, entry_images(storage_path, sort_order)")
-          .order("created_at", { ascending: false });
 
-        if (error) throw error;
-
-        if (isMounted && data) {
-          const mappedData: DataEntry[] = data.map((row: any) => {
-            let mappedType: "Desa" | "Pengetahuan Adat" | "Benih/Varietas" =
-              "Desa";
-            if (row.type === "benih_varietas") mappedType = "Benih/Varietas";
-            else if (row.type === "pengetahuan_adat")
-              mappedType = "Pengetahuan Adat";
-
-            let mappedStatus = "Verifikasi";
-            if (row.status === "aktif") mappedStatus = "Aktif";
-            else if (row.status === "ditolak") mappedStatus = "Ditolak";
-
-            const images = row.entry_images
-              ? row.entry_images
-                  .sort((a: any, b: any) => a.sort_order - b.sort_order)
-                  .map(
-                    (img: any) =>
-                      supabase.storage
-                        .from("entry-images")
-                        .getPublicUrl(img.storage_path).data.publicUrl,
-                  )
-              : [];
-
-            const fpicDocUrl = row.fpic_doc_path
-              ? supabase.storage
-                  .from("fpic-documents")
-                  .getPublicUrl(row.fpic_doc_path).data.publicUrl
-              : "";
-
-            return {
-              id: row.id,
-              type: mappedType,
-              nama: row.nama,
-              kategori: row.kategori || "",
-              status: mappedStatus,
-              tanggal: row.tanggal || "",
-              lokasi: {
-                kota: row.kota_kabupaten || "",
-                provinsi: row.provinsi || "",
-                deskripsiLokasi: row.deskripsi_lokasi || "",
-                koordinat:
-                  row.lat && row.lng ? { lat: row.lat, lng: row.lng } : null,
-              },
-              deskripsi: row.deskripsi || "",
-              images: images,
-              fpicDoc: fpicDocUrl,
-              namaLokal: row.nama_lokal,
-              namaIlmiah: row.nama_ilmiah,
-              namaPenemu: row.nama_penemu,
-              judulPengetahuan: row.judul_pengetahuan,
-              varietasTerkait: row.varietas_terkait,
-              wilayahAsal: row.wilayah_asal,
-              namaNarasumber: row.nama_narasumber,
-            };
-          });
-
-          setLocalEntries(mappedData);
-        }
-      } catch (err) {
-        console.error("Fetch data entries error:", err);
-        alert("Gagal memuat data dari server.");
-      } finally {
-        if (isMounted) setIsLoadingData(false);
-      }
-    };
-
-    fetchEntries();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const handleToggleStatus = async (id: string, currentStatus: string) => {
-    const newStatusUI = currentStatus === "Aktif" ? "Verifikasi" : "Aktif";
-    const newStatusDB = newStatusUI === "Aktif" ? "aktif" : "verifikasi";
-
-    setLocalEntries((prev) =>
-      prev.map((entry) =>
-        entry.id === id ? { ...entry, status: newStatusUI } : entry,
-      ),
-    );
-    if (onToggleEntryStatus) {
-      onToggleEntryStatus(id);
-    }
-
-    try {
-      const { error } = await supabase
-        .from("data_entries")
-        .update({
-          status: newStatusDB,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-
-      if (error) throw error;
-    } catch (err) {
-      console.error("Toggle status error:", err);
-      alert("Gagal mengubah status data.");
-
-      const rollbackStatus = currentStatus === "Aktif" ? "Aktif" : "Verifikasi";
-      setLocalEntries((prev) =>
-        prev.map((entry) =>
-          entry.id === id ? { ...entry, status: rollbackStatus } : entry,
-        ),
-      );
-      if (onToggleEntryStatus) {
-        onToggleEntryStatus(id);
-      }
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    const confirmDelete = window.confirm(
-      "Apakah Anda yakin ingin menghapus entri data ini secara permanen?",
-    );
-    if (!confirmDelete) return;
-
-    try {
-      const { error } = await supabase
-        .from("data_entries")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      setLocalEntries((prev) => prev.filter((entry) => entry.id !== id));
-      if (onDeleteEntry) {
-        onDeleteEntry(id);
-      }
-    } catch (err) {
-      console.error("Delete entry error:", err);
-      alert("Gagal menghapus entri data.");
+  const handleDelete = (id: string) => {
+    if (onDeleteEntry) {
+      onDeleteEntry(id);
     }
   };
 
@@ -297,9 +157,9 @@ export default function DashboardPage({
     calendarDays.push({ day: d, isCurrentMonth: false }),
   );
 
-  const handleEditClick = (item: DataEntry): void => {
+  const handleEditClick = (item: DataEntry, forceEdit = false): void => {
     setActiveEntryId(item.id);
-    if (isMasyarakat || isFasilitator) {
+    if (forceEdit || isMasyarakat || isFasilitator) {
       if (item.type === "Benih/Varietas") {
         onNavigate("add-data-benih");
       } else {
@@ -329,6 +189,35 @@ export default function DashboardPage({
           <p className="text-sm text-gray-300 mt-2 font-normal">
             To Eco Journey Knowledge Management System
           </p>
+          
+          {/* Database Connection Status Badge */}
+          {dbConnectionStatus === "connected" && (
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-extrabold mt-4 select-none shadow-sm transition-all duration-300">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Supabase Terkoneksi
+            </div>
+          )}
+          {dbConnectionStatus === "connecting" && (
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-extrabold mt-4 select-none shadow-sm transition-all duration-300">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+              Menghubungkan ke Database...
+            </div>
+          )}
+          {dbConnectionStatus === "fallback" && (
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-extrabold mt-4 select-none shadow-sm transition-all duration-300">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              Mode Demo: Data Lokal (Offline/Fallback)
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
@@ -354,7 +243,7 @@ export default function DashboardPage({
                 },
                 {
                   label: "Perlu Revisi",
-                  value: String(localEntries.filter((e) => e.status === "Perlu Direvisi").length || 0),
+                  value: String(localEntries.filter((e) => e.status === "Perlu Revisi").length || 0),
                   icon: Edit,
                   bg: "bg-white/10",
                 },
@@ -766,11 +655,26 @@ export default function DashboardPage({
               Peta Sebaran Varietas Lokal
             </h2>
             <hr className="border-gray-300" />
-            <div className="bg-white p-4 rounded-[5px] shadow-sm border border-gray-200/50 flex flex-col items-center justify-center">
-              <img
-                src="/indonesia_map.png"
-                alt="Peta Sebaran Varietas Lokal"
-                className="w-full max-w-4xl h-auto rounded-[5px] object-contain"
+            <div className="bg-white p-4 rounded-[5px] shadow-sm border border-gray-200/50 w-full">
+              <MapLocator
+                readOnly={true}
+                latitude={null}
+                longitude={null}
+                pins={localEntries
+                  .filter(
+                    (entry) =>
+                      entry.status === "Aktif" &&
+                      entry.lokasi?.koordinat &&
+                      entry.lokasi.koordinat.lat !== null &&
+                      entry.lokasi.koordinat.lng !== null
+                  )
+                  .map((entry) => ({
+                    id: entry.id,
+                    lat: entry.lokasi.koordinat!.lat,
+                    lng: entry.lokasi.koordinat!.lng,
+                    nama: entry.nama,
+                    type: entry.type,
+                  }))}
               />
             </div>
           </section>
@@ -831,10 +735,10 @@ export default function DashboardPage({
               </div>
               <div>
                 <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider block">
-                  Perlu Direvisi
+                  Perlu Revisi
                 </span>
                 <span className="text-xl font-extrabold text-kms-blue-accent block">
-                  0
+                  {localEntries.filter((e) => e.status === "Perlu Revisi").length}
                 </span>
               </div>
             </div>
@@ -907,7 +811,7 @@ export default function DashboardPage({
                     filteredData.map((item, idx) => (
                       <tr
                         key={item.id}
-                        className="hover:bg-gray-50 transition-colors"
+                        className="hover:bg-kms-green-light/15 transition-all duration-200"
                       >
                         <td className="px-4 py-3.5 font-semibold">{idx + 1}</td>
                         <td
@@ -926,45 +830,19 @@ export default function DashboardPage({
                         </td>
                         <td className="px-4 py-3.5 text-center">
                           <div className="flex justify-center">
-                            {isAdmin ? (
-                              <button
-                                onClick={() =>
-                                  handleToggleStatus(item.id, item.status)
-                                }
-                                className={`w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-200 outline-none border-none ${
-                                  item.status === "Aktif"
-                                    ? "bg-kms-green-status"
-                                    : "bg-gray-300"
-                                }`}
-                                title={
-                                  item.status === "Aktif"
-                                    ? "Set to Verification"
-                                    : "Set to Active"
-                                }
-                              >
-                                <div
-                                  className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-200 ${
-                                    item.status === "Aktif"
-                                      ? "translate-x-5"
-                                      : "translate-x-0"
-                                  }`}
-                                />
-                              </button>
-                            ) : (
-                              <span
-                                className={`px-2.5 py-1 rounded-[5px] text-xs font-bold ${
-                                  item.status === "Aktif"
-                                    ? "bg-green-100 text-green-800"
-                                    : item.status === "Ditolak"
-                                    ? "bg-red-100 text-red-800"
-                                    : item.status === "Perlu Direvisi"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : "bg-yellow-100 text-yellow-800"
-                                }`}
-                              >
-                                {item.status}
-                              </span>
-                            )}
+                            <span
+                              className={`px-2.5 py-1 rounded-[5px] text-xs font-bold ${
+                                item.status === "Aktif"
+                                  ? "bg-green-100 text-green-800"
+                                  : item.status === "Ditolak"
+                                  ? "bg-red-100 text-red-800"
+                                  : item.status === "Perlu Revisi"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-yellow-100 text-yellow-800"
+                              }`}
+                            >
+                              {item.status}
+                            </span>
                           </div>
                         </td>
                         <td className="px-4 py-3.5 text-center">
@@ -981,18 +859,18 @@ export default function DashboardPage({
                               <Share2 className="w-4 h-4" />
                             </button>
 
-                            {isPakar && (
+                            {(isPakar || isAdmin) && item.status === "Verifikasi" && (
                               <button
-                                onClick={() => handleEditClick(item)}
+                                onClick={() => handleEditClick(item, false)}
                                 className="bg-kms-blue-accent hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-[5px] transition-all cursor-pointer border-none"
                               >
                                 Verifikasi
                               </button>
                             )}
 
-                            {(isMasyarakat || isFasilitator) && (
+                            {(isMasyarakat || isFasilitator || isAdmin) && (
                               <button
-                                onClick={() => handleEditClick(item)}
+                                onClick={() => handleEditClick(item, true)}
                                 className="text-gray-500 hover:text-kms-blue-edit cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
                                 title="Edit Entry"
                               >
@@ -1001,22 +879,13 @@ export default function DashboardPage({
                             )}
 
                             {isAdmin && (
-                              <>
-                                <button
-                                  onClick={() => handleEditClick(item)}
-                                  className="text-gray-500 hover:text-kms-blue-edit cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
-                                  title="Validate / Edit"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(item.id)}
-                                  className="text-gray-500 hover:text-kms-red cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
-                                  title="Delete Entry"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
+                              <button
+                                onClick={() => handleDelete(item.id)}
+                                className="text-gray-500 hover:text-kms-red cursor-pointer p-1 rounded hover:bg-gray-100 transition border-none bg-transparent"
+                                title="Delete Entry"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
                         </td>

@@ -12,6 +12,7 @@ interface ValidasiDataPageProps {
   onValidateEntry: (
     id: string,
     newStatus: "Aktif" | "Verifikasi" | "Ditolak" | string,
+    rejectionReason?: string,
   ) => void;
 }
 
@@ -86,7 +87,7 @@ export default function ValidasiDataPage({
   };
 
   const executeReject = () => {
-    onValidateEntry(currentEntry.id, "Ditolak");
+    onValidateEntry(currentEntry.id, "Ditolak", saranRevisi);
     setConfirmAction(null);
     showToast("Data pengajuan telah ditolak.", "info");
     setTimeout(() => onNavigate("dashboard"), 1800);
@@ -357,7 +358,7 @@ export default function ValidasiDataPage({
                           ? "bg-green-150 text-kms-green-dark"
                           : currentEntry.status === "Ditolak"
                             ? "bg-red-100 text-kms-red"
-                            : currentEntry.status === "Perlu Direvisi"
+                            : currentEntry.status === "Perlu Revisi"
                               ? "bg-blue-150 text-blue-850"
                               : "bg-yellow-100 text-yellow-750"
                       }`}
@@ -567,7 +568,7 @@ export default function ValidasiDataPage({
                           showToast("Saran revisi tidak boleh kosong jika ingin dikirim.", "warning");
                           return;
                         }
-                        onValidateEntry(currentEntry.id, "Perlu Direvisi");
+                        onValidateEntry(currentEntry.id, "Perlu Revisi", saranRevisi);
                         showToast("Saran revisi berhasil dikirim ke pengaju data.", "success");
                         setTimeout(() => onNavigate("dashboard"), 1800);
                       }}
